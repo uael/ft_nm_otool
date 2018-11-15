@@ -20,3 +20,4 @@
 *.lib
 *.dll
 diff*
+compile_commands.json
