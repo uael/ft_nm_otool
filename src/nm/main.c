@@ -10,6 +10,7 @@
 
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <printf.h>
 
 #define COUNT_OF(x) (sizeof(x) / sizeof(*(x)))
 
@@ -150,13 +151,15 @@ static int reader_rd(struct reader *rd, uint8_t *buf, unsigned sz)
 	return start - sz;
 }
 
-//static int reader_seek(struct reader *rd, size_t off)
-//{
-//	(void)reader_seek;
-//	if (off >= rd->len) return -1;
-//	rd->off = off;
-//	return 0;
-//}
+static void reader_seek(struct reader *rd, size_t off)
+{
+	if (rd->err) return;
+	if (off >= rd->len) {
+		errno = EBADMACHO;
+		return;
+	}
+	rd->off = off;
+}
 
 static uint8_t reader_rdbyte(struct reader *rd)
 {
@@ -291,13 +294,43 @@ static int reader_rdhdr(struct reader *rd, struct mach_header *hdr)
 	return rd->err;
 }
 
+struct sym_entry {
+	uint8_t type;
+	uint8_t sect;
+	uint16_t desc;
+	uint64_t value;
+	const char *name;
+
+	struct sym_entry *next;
+};
+
+//static void sym_entry_dump(struct sym_entry *ent)
+//{
+//	uint8_t stab, pext, type, ext;
+//	char c;
+//
+//	ext  = (uint8_t)(ent->type      & 0x1);
+//	type = (uint8_t)(ent->type << 1 & 0x7);
+//	pext = (uint8_t)(ent->type << 4 & 0x1);
+//	stab = (uint8_t)(ent->type << 5 & 0x7);
+//
+//	switch (ent->sect) {
+//	case N_UNDF: c = 'u'; break;
+//	case N_ABS:  c = 'a'; break;
+//	}
+//}
+
 int main(int ac, char *av[])
 {
+	static struct sym_entry entries[PAGE_SIZE * 4] = { };
+	static uint16_t nentries;
+
 	(void)ac;
 
 	for (const char *av0 = *av++; *av; ++av) {
 		struct reader rd;
 		struct mach_header hdr;
+		struct sym_entry *head = NULL;
 
 		rd.err = 0;
 		rd.off = 0;
@@ -311,54 +344,55 @@ int main(int ac, char *av[])
 
 		for (uint32_t i = 0; rd.err == 0 && i < hdr.ncmds; ++i) {
 			struct load_command lc = { 0, 0 };
-			struct segment_command sc;
-			struct segment_command_64 sc_64;
 
 			reader_rdfmt(&rd, "44", &lc.cmd, &lc.cmdsize);
 
-			if (lc.cmd == LC_SEGMENT) {
-				reader_rdfmt(&rd, "[16]44444444",
-				             sc.segname, &sc.vmaddr, &sc.vmsize,
-				             &sc.fileoff, &sc.filesize, &sc.maxprot,
-				             &sc.initprot, &sc.nsects, &sc.flags);
+			if (lc.cmd == LC_SYMTAB) {
+				struct symtab_command sc;
 
-				reader_rd(&rd, NULL,
-				          lc.cmdsize - sizeof(struct segment_command));
+				reader_rdfmt(&rd, "4444",
+				             &sc.symoff, &sc.nsyms, &sc.stroff, &sc.strsize);
 
-				if (!rd.err) ft_printf("%s\n", sc.segname);
-
-				for (uint32_t j = 0; rd.err == 0 && j < sc_64.nsects; ++j) {
-					struct section s;
-
-					reader_rdfmt(&rd, "[16][16]444444444",
-					             s.sectname, s.segname, &s.addr,
-					             &s.addr, &s.size, &s.offset,
-					             &s.align,  &s.reloff, &s.nreloc,
-					             &s.flags, NULL, NULL);
-
-					if (!rd.err) ft_printf("  %s\n", s.sectname);
+				if (sc.stroff + sc.strsize > rd.len) {
+					errno = EBADMACHO;
+					goto done;
 				}
-			} else if (lc.cmd == LC_SEGMENT_64) {
-				reader_rdfmt(&rd, "[16]88884444",
-				             sc_64.segname, &sc_64.vmaddr, &sc_64.vmsize,
-				             &sc_64.fileoff, &sc_64.filesize, &sc_64.maxprot,
-				             &sc_64.initprot, &sc_64.nsects, &sc_64.flags);
 
-				if (!rd.err) ft_printf("%s\n", sc_64.segname);
+				size_t off = rd.off;
+				reader_seek(&rd, sc.symoff);
 
-				for (uint32_t j = 0; rd.err == 0 && j < sc_64.nsects; ++j) {
-					struct section_64 s_64;
+				for (uint32_t k = 0; k < sc.nsyms; ++k) {
+					struct nlist_64 n_64;
+					struct sym_entry *ent = entries + nentries;
 
-					reader_rdfmt(&rd, "[16][16]8844444444",
-					             s_64.sectname, s_64.segname, &s_64.addr,
-					             &s_64.addr, &s_64.size, &s_64.offset,
-					             &s_64.align,  &s_64.reloff, &s_64.nreloc,
-					             &s_64.flags, NULL, NULL, NULL);
+					reader_rdfmt(&rd, "41128", &n_64.n_un.n_strx, &ent->type,
+					             &ent->sect, &ent->desc, &ent->value);
 
-					if (!rd.err) ft_printf("  %s\n", s_64.sectname);
+					if (rd.err || sc.stroff + n_64.n_un.n_strx >= rd.len) {
+						errno = EBADMACHO;
+						goto done;
+					}
+
+					ent->name = (const char *)(rd.buf + sc.stroff + n_64.n_un.n_strx);
+
+					struct sym_entry **hd;
+
+					for (hd = &head; *hd; hd = &(*hd)->next)
+						if (strcmp(ent->name, (*hd)->name) < 0)
+						{ ent->next = *hd; break; }
+
+					*hd = ent;
+					++nentries;
 				}
-			}
+
+				reader_seek(&rd, off);
+			} else reader_rd(&rd, NULL, lc.cmdsize - sizeof(struct load_command));
 		}
+
+		for (; head; head = head->next)
+			printf("%02x %02x %03x %016llx %s\n", head->type, head->sect,
+			       head->desc, head->value,
+			       head->name);
 
 done:   if (rd.err) ft_printf("%s: %s\n", av0, ft_strerror(errno));
 		munmap(rd.buf, rd.len);
