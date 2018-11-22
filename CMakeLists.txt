@@ -12,4 +12,5 @@ macro (add_target name)
   add_dependencies(${name} ${name}_compiledb)
 endmacro()
 
-add_target(eiffel bin)
+add_target(nm bin)
+add_target(otool bin)
