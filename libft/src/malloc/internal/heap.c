@@ -12,7 +12,7 @@
 
 #include "heap.h"
 
-#define BITS (sizeof(uint64_t) * BITSPERBYTE)
+#define BITS (sizeof(uint64_t) * 8)
 
 static int			heap_init(struct s_mpool *heap, void *conf)
 {

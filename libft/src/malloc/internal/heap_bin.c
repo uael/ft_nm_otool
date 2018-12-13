@@ -14,7 +14,7 @@
 
 #include <sys/mman.h>
 
-#define BITS (sizeof(uint64_t) * BITSPERBYTE)
+#define BITS (sizeof(uint64_t) * 8)
 
 int					bin_init(struct s_bin *bin, struct s_blk *blk)
 {

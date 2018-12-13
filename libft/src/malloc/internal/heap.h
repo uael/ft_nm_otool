@@ -16,7 +16,6 @@
 # include "internal.h"
 
 # include <stdbool.h>
-# include <values.h>
 
 # define MIN_ALLOC (128)
 
@@ -30,7 +29,7 @@ struct				s_blk
 {
 	struct s_bin	*bins;
 	uint16_t		nbyte;
-	uint64_t		freemask[MIN_ALLOC / (sizeof(uint64_t) * BITSPERBYTE)];
+	uint64_t		freemask[MIN_ALLOC / (sizeof(uint64_t) * 8)];
 };
 
 struct				s_bin
@@ -40,8 +39,8 @@ struct				s_bin
 
 	struct s_mmap	mmap;
 
-	uint64_t		binmap[MIN_ALLOC / (sizeof(uint64_t) * BITSPERBYTE)];
-	uint64_t		ptrmap[MIN_ALLOC / (sizeof(uint64_t) * BITSPERBYTE)];
+	uint64_t		binmap[MIN_ALLOC / (sizeof(uint64_t) * 8)];
+	uint64_t		ptrmap[MIN_ALLOC / (sizeof(uint64_t) * 8)];
 };
 
 int					bin_init(struct s_bin *bin, struct s_blk *blk);

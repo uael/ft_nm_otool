@@ -80,7 +80,7 @@ bin: $(TARGET_BIN)
 
 all: lib bin
 
-MAKE_DEPS := $(MAKEFILE_LIST) $(BUILD_PATH)
+MAKE_DEPS := $(MAKEFILE_LIST)
 
 # ------------------------------------------------------------------------------
 # Rules
@@ -112,9 +112,6 @@ $(TARGET_BIN): | $(DEPS) $(MAKE_DEPS)
 	@echo "  LD      $(notdir $@)"
 	$(V)$(LD) $^ $(LDFLAGS) $(addprefix -L,$(LDDIRS)) \
 	  $(addprefix -l,$(LDLIBS)) -o $@
-
-$(BUILD_PATH):
-	@mkdir -p $(BUILD_PATH)
 
 clean:
 	@rm -rf $(BUILD_DIR)
