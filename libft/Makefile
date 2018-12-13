@@ -10,50 +10,78 @@
 #                                                                              #
 # **************************************************************************** #
 
+.DEFAULT_GOAL := all
+
 # ------------------------------------------------------------------------------
 # Configuration
 # ------------------------------------------------------------------------------
 
-MAKE_DEPS = Makefile
+CC     := gcc
+LD     := gcc
+CFLAGS += -Wall -Wextra -Werror
 
-CC=gcc
-LD=gcc
-
-CFLAGS += -fPIC
-
-ifneq ($(DEBUG),)
-  CONFIG = debug
-  CFLAGS += -g3 -O0
-  ifneq ($(ASAN),)
-  	CFLAGS += -fsanitize=address
-  	LDFLAGS += -fsanitize=address
-  	TARGET_SUFFIX = .san
-  else
-    TARGET_SUFFIX = .dev
-  endif
-else
-  CONFIG = release
-  CFLAGS += -flto -O3 -Wall -Werror -Wextra
+ifeq ($(DEBUG),)
+  CONFIG   = release
+  CFLAGS  += -flto -O2
   LDFLAGS += -flto
+else
+  CONFIG         = debug
+  TARGET_SUFFIX  = -debug
+  CFLAGS        += -g3 -O0
+  ifneq ($(SAN),)
+    CONFIG         = san
+    TARGET_SUFFIX  = -san
+    CFLAGS        += -fsanitize=address
+    LDFLAGS       += -fsanitize=address
+  endif
 endif
 
-BUILD_DIR = build
-BUILD_PATH := $(BUILD_DIR)/$(CONFIG)
+PREFIX     ?= .
+BUILD_DIR  ?= build
+BUILD_PATH ?= $(BUILD_DIR)/$(CONFIG)
+OUTLIB_DIR ?= $(PREFIX)/lib
+OUTBIN_DIR ?= $(PREFIX)/bin
 
 # ------------------------------------------------------------------------------
 # Sources & Target
 # ------------------------------------------------------------------------------
 
-TARGET = libft
+all:
 
-INCLUDE = include
+define set_define =
+  $(addprefix $(BUILD_PATH)/,$(1)): DEFINE+=$(2)
+endef
 
-include src/makefile.mk
-MAKE_DEPS += src/makefile.mk
+define set_config =
+  $(addprefix $(BUILD_PATH)/,$(1)): DEFINE+=$(2)=$($(2))
+endef
 
-TARGET_LIB := $(TARGET)$(TARGET_SUFFIX).a
-all: $(TARGET_LIB)
-.DEFAULT_GOAL := $(TARGET_LIB)
+define target
+  $(eval $(3) := $($(5))/$(1)$(TARGET_SUFFIX)$(6))
+  $($(3)): $(addprefix $(BUILD_PATH)/,$($(2)))
+  $(eval $(4) += $($(3)))
+  $(eval OBJ += $($(2)))
+  $(1): $($(3))
+endef
+
+define target_lib
+  $(eval $(call target,$(1),$(2),$(3),TARGET_LIB,OUTLIB_DIR,.a))
+endef
+
+define target_bin
+  $(eval $(call target,$(1),$(2),$(3),TARGET_BIN,OUTBIN_DIR,))
+endef
+
+LIBFT_ROOT_DIR := $(shell pwd)
+include makefile.mk
+include test/makefile.mk
+
+lib: $(TARGET_LIB)
+bin: $(TARGET_BIN)
+
+all: lib bin
+
+MAKE_DEPS := $(MAKEFILE_LIST) $(BUILD_PATH)
 
 # ------------------------------------------------------------------------------
 # Rules
@@ -61,27 +89,38 @@ all: $(TARGET_LIB)
 
 V ?= @
 
--include $(addprefix $(BUILD_PATH)/,$(SRC:.c=.d))
+-include $(addprefix $(BUILD_PATH)/,$(OBJ:.o=.d))
 
 $(BUILD_PATH)/%.o: %.c $(MAKE_DEPS)
-	@echo "  CC      $(notdir $<)"
 	@mkdir -p $(dir $@)
+	@echo "  CC      $(notdir $<)"
 	$(V)$(CC) $< -c $(CFLAGS) $(addprefix -I,$(INCLUDE)) \
-		$(addprefix -D,$(DEFINE)) -MMD -MF $(@:.o=.d) -o $@
+	  $(addprefix -D,$(DEFINE)) -MMD -MF $(@:.o=.d) -o $@
 
-$(TARGET_LIB): $(addprefix $(BUILD_PATH)/,$(SRC:.c=.o))
+$(BUILD_PATH)/%.o: %.s $(MAKE_DEPS)
+	@mkdir -p $(dir $@)
+	@echo "  AS      $(notdir $<)"
+	$(V)$(AS) $< -c $(CFLAGS) $(addprefix -I,$(INCLUDE)) \
+	  $(addprefix -D,$(DEFINE)) -MMD -MF $(@:.o=.d) -o $@
+
+$(TARGET_LIB): | $(DEPS) $(MAKE_DEPS)
+	@mkdir -p $(dir $@)
+	@echo "  AR      $(notdir $@)"
+	$(V)$(AR) rcs $@ $^
+
+$(TARGET_BIN): | $(DEPS) $(MAKE_DEPS)
+	@mkdir -p $(dir $@)
 	@echo "  LD      $(notdir $@)"
-	$(V)ar -rc $(TARGET).a $^
-	$(V)ranlib $(TARGET).a
+	$(V)$(LD) $^ $(LDFLAGS) $(addprefix -L,$(LDDIRS)) \
+	  $(addprefix -l,$(LDLIBS)) -o $@
+
+$(BUILD_PATH):
+	@mkdir -p $(BUILD_PATH)
 
 clean:
-	@$(RM) -rf $(BUILD_DIR)
+	@rm -rf $(BUILD_DIR)
 
 fclean: clean
-	@$(RM) -f $(TARGET_LIB)
+	@rm -rf $(TARGET_LIB) $(TARGET_BIN)
 
-re: fclean all
-
-norm:
-	@norminette $(shell echo "{include,src}/**/**.[ch]") \
-	  $(shell echo "{include,src}/**.[ch]")
+re: clean all

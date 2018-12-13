@@ -1,402 +1,104 @@
-#include <libft.h>
-
-#include <mach-o/loader.h>
-#include <mach-o/nlist.h>
-#include <mach-o/stab.h>
-#include <mach-o/reloc.h>
-#include <mach-o/swap.h>
-#include <sys/param.h>
+#include <ft/stdio.h>
 #include <stdbool.h>
-
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <printf.h>
+#include <errno.h>
 
-#define COUNT_OF(x) (sizeof(x) / sizeof(*(x)))
-
-static const char *errno_str[] = {
-	[EPERM] = "Operation not permitted",
-	[ENOENT] = "No such file or directory",
-	[ESRCH] = "No such process",
-	[EINTR] = "Interrupted system call",
-	[EIO] = "Input/output error",
-	[ENXIO] = "Device not configured",
-	[E2BIG] = "Argument list too long",
-	[ENOEXEC] = "Exec format error",
-	[EBADF] = "Bad file descriptor",
-	[ECHILD] = "No child processes",
-	[EDEADLK] = "Resource deadlock avoided",
-	[ENOMEM] = "Cannot allocate memory",
-	[EACCES] = "Permission denied",
-	[EFAULT] = "Bad address",
-	[ENOTBLK] = "Block device required",
-	[EBUSY] = "Device / Resource busy",
-	[EEXIST] = "File exists",
-	[EXDEV] = "Cross-device link",
-	[ENODEV] = "Operation not supported by device",
-	[ENOTDIR] = "Not a directory",
-	[EISDIR] = "Is a directory",
-	[EINVAL] = "Invalid argument",
-	[ENFILE] = "Too many open files in system",
-	[EMFILE] = "Too many open files",
-	[ENOTTY] = "Inappropriate ioctl for device",
-	[ETXTBSY] = "Text file busy",
-	[EFBIG] = "File too large",
-	[ENOSPC] = "No space left on device",
-	[ESPIPE] = "Illegal seek",
-	[EROFS] = "Read-only file system",
-	[EMLINK] = "Too many links",
-	[EPIPE] = "Broken pipe",
-	[EDOM] = "Numerical argument out of domain",
-	[ERANGE] = "Result too large",
-	[EAGAIN] = "Resource temporarily unavailable",
-	[EINPROGRESS] = "Operation now in progress",
-	[EALREADY] = "Operation already in progress",
-	[ENOTSOCK] = "Socket operation on non-socket",
-	[EDESTADDRREQ] = "Destination address required",
-	[EMSGSIZE] = "Message too long",
-	[EPROTOTYPE] = "Protocol wrong type for socket",
-	[ENOPROTOOPT] = "Protocol not available",
-	[EPROTONOSUPPORT] = "Protocol not supported",
-	[ESOCKTNOSUPPORT] = "Socket type not supported",
-	[ENOTSUP] = "Operation not supported",
-	[EPFNOSUPPORT] = "Protocol family not supported",
-	[EAFNOSUPPORT] = "Address family not supported by protocol family",
-	[EADDRINUSE] = "Address already in use",
-	[EADDRNOTAVAIL] = "Can't assign requested address",
-	[ENETDOWN] = "Network is down",
-	[ENETUNREACH] = "Network is unreachable",
-	[ENETRESET] = "Network dropped connection on reset",
-	[ECONNABORTED] = "Software caused connection abort",
-	[ECONNRESET] = "Connection reset by peer",
-	[ENOBUFS] = "No buffer space available",
-	[EISCONN] = "Socket is already connected",
-	[ENOTCONN] = "Socket is not connected",
-	[ESHUTDOWN] = "Can't send after socket shutdown",
-	[ETOOMANYREFS] = "Too many references: can't splice",
-	[ETIMEDOUT] = "Operation timed out",
-	[ECONNREFUSED] = "Connection refused",
-	[ELOOP] = "Too many levels of symbolic links",
-	[ENAMETOOLONG] = "File name too long",
-	[EHOSTDOWN] = "Host is down",
-	[EHOSTUNREACH] = "No route to host",
-	[ENOTEMPTY] = "Directory not empty",
-	[EPROCLIM] = "Too many processes",
-	[EUSERS] = "Too many users",
-	[EDQUOT] = "Disc quota exceeded",
-	[ESTALE] = "Stale NFS file handle",
-	[EREMOTE] = "Too many levels of remote in path",
-	[EBADRPC] = "RPC struct is bad",
-	[ERPCMISMATCH] = "RPC version wrong",
-	[EPROGUNAVAIL] = "RPC prog. not avail",
-	[EPROGMISMATCH] = "Program version wrong",
-	[EPROCUNAVAIL] = "Bad procedure for program",
-	[ENOLCK] = "No locks available",
-	[ENOSYS] = "Function not implemented",
-	[EFTYPE] = "Inappropriate file type or format",
-	[EAUTH] = "Authentication error",
-	[ENEEDAUTH] = "Need authenticator",
-	[EPWROFF] = "Device power is off",
-	[EDEVERR] = "Device error, e.g. paper out",
-	[EOVERFLOW] = "Value too large to be stored in data type",
-	[EBADEXEC] = "Bad executable",
-	[EBADARCH] = "Bad CPU type in executable",
-	[ESHLIBVERS] = "Shared library version mismatch",
-	[EBADMACHO] = "Malformed Macho file",
-	[ECANCELED] = "Operation canceled",
-	[EIDRM] = "Identifier removed",
-	[ENOMSG] = "No message of desired type",
-	[EILSEQ] = "Illegal byte sequence",
-	[ENOATTR] = "Attribute not found",
-	[EBADMSG] = "Bad message",
-	[EMULTIHOP] = "Reserved",
-	[ENODATA] = "No message available on STREAM",
-	[ENOLINK] = "Reserved",
-	[ENOSR] = "No STREAM resources",
-	[ENOSTR] = "Not a STREAM",
-	[EPROTO] = "Protocol error",
-	[ETIME] = "STREAM ioctl timeout",
-	[EOPNOTSUPP] = "Operation not supported on socket",
-	[ENOPOLICY] = "No such policy registered",
-	[ENOTRECOVERABLE] = "State not recoverable",
-	[EOWNERDEAD] = "Previous owner died",
-	[EQFULL] = "Interface output queue is full",
-};
-
-static const char *ft_strerror(int eno)
+struct obj
 {
-	return eno < 0 || eno > (int)COUNT_OF(errno_str)
-	       ? "Unknown error" : errno_str[eno];
-}
-
-struct reader {
-	size_t off, len;
+	const char *filename;
+	size_t  off;
+	size_t  len;
 	uint8_t *buf;
-	int err;
 };
 
-static int reader_rd(struct reader *rd, uint8_t *buf, unsigned sz)
+typedef int t_obj_load(struct obj *o, bool m, int (*r)(struct obj *, bool));
+
+struct obj_loader
 {
-	size_t left;
-	unsigned start = sz;
+	uint32_t magic;
+	bool m32;
+	t_obj_load *load;
+};
 
-	if ((left = rd->len - rd->off) > 0) {
-		if (left > sz) left = sz;
-		if (buf) ft_memcpy(buf, rd->buf + rd->off, left);
-		sz -= left;
-		rd->off += left;
-	}
+#define NM_EISDIR  (200)
 
-	if (sz) rd->err = -1;
-	return start - sz;
+void *obj_peek(struct obj *o, size_t off, size_t len)
+{
+	return (o->off + off + len >= o->len ? NULL : o->buf + o->off + off);
 }
 
-static void reader_seek(struct reader *rd, size_t off)
+void obj_seek(struct obj *o, size_t off)
 {
-	if (rd->err) return;
-	if (off >= rd->len) {
-		errno = EBADMACHO;
-		return;
-	}
-	rd->off = off;
+	o->off = off;
 }
 
-static uint8_t reader_rdbyte(struct reader *rd)
+int archive_load(struct obj *o, bool m32, int (*reader)(struct obj *, bool))
 {
-	uint8_t byte;
-	
-	return (uint8_t)(reader_rd(rd, &byte, 1) == 1 ? byte : 0);
+	return reader(o, m32);
 }
 
-static uint64_t reader_rdle(struct reader *rd, int z)
+int fat_load(struct obj *o, bool m32, int (*reader)(struct obj *, bool))
 {
-	uint64_t v = 0;
-	
-	if (z >= 1) v  = (uint64_t)reader_rdbyte(rd);
-	if (z >= 2) v |= (uint64_t)reader_rdbyte(rd) <<  8;
-	if (z >= 3) v |= (uint64_t)reader_rdbyte(rd) << 16;
-	if (z >= 4) v |= (uint64_t)reader_rdbyte(rd) << 24;
-	if (z >= 5) v |= (uint64_t)reader_rdbyte(rd) << 32;
-	if (z >= 6) v |= (uint64_t)reader_rdbyte(rd) << 40;
-	if (z >= 7) v |= (uint64_t)reader_rdbyte(rd) << 48;
-	if (z >= 8) v |= (uint64_t)reader_rdbyte(rd) << 56;
-	return v;
+	return reader(o, m32);
 }
 
-
-static uint64_t reader_rdbe(struct reader *rd, int z)
+int direct_load(struct obj *o, bool m32, int (*reader)(struct obj *, bool))
 {
-	uint64_t v = 0;
-	
-	if (z >= 1) v = (v     ) | reader_rdbyte(rd);
-	if (z >= 2) v = (v << 8) | reader_rdbyte(rd);
-	if (z >= 3) v = (v << 8) | reader_rdbyte(rd);
-	if (z >= 4) v = (v << 8) | reader_rdbyte(rd);
-	if (z >= 5) v = (v << 8) | reader_rdbyte(rd);
-	if (z >= 6) v = (v << 8) | reader_rdbyte(rd);
-	if (z >= 7) v = (v << 8) | reader_rdbyte(rd);
-	if (z >= 8) v = (v << 8) | reader_rdbyte(rd);
-	return v;
+	return reader(o, m32);
 }
 
-static uint64_t (*reader_rdint)(struct reader *rd, int z) = reader_rdbe;
-
-static void reader_rdstr(struct reader *rd, char *dst, unsigned ns, unsigned nd)
+int error_load(struct obj *o, bool m32, int (*reader)(struct obj *, bool))
 {
-	unsigned ncpy = MIN(ns, nd - 1);
-
-	reader_rd(rd, (uint8_t *)dst, ncpy);
-	reader_rd(rd, NULL, ns - ncpy);
-	dst[nd - 1] = '\0';
-}
-
-static void reader_vrdfmt(struct reader *rd, const char *fmt, va_list ap)
-{
-	uint64_t (*rdxe)(struct reader *, int) = reader_rdint;
-	char c;
-
-	while ((c = *(fmt++))) {
-		if (c == ' ') continue;
-		if (c == '<') { rdxe = reader_rdle; continue; }
-		if (c == '>') { rdxe = reader_rdbe; continue; }
-
-		void *p = va_arg(ap, void *);
-		int n = *fmt != '+' ? 1 : (fmt++, va_arg(ap, int));
-
-		if (c >= '0' && c <= '8') {
-			uint64_t *p_v = (uint64_t *)p;
-
-			for (int i = 0; i < n; i++) {
-				uint64_t v = rdxe(rd, c - '0');
-				if (p) *(p_v++) = v;
-			}
-		} else if (c == '[' || c == '(') {
-			char c_close = (char)(c == '[' ? ']' : ')');
-			unsigned ns, nd = 0; char dig;
-
-			if (*fmt == c_close) ns = (fmt++, va_arg(ap, unsigned));
-			else for (ns = 0; (dig = *(fmt++)) != c_close;)
-				ns = 10 * ns + (dig - '0');
-
-			if (c == '(') nd = (fmt++, va_arg(ap, unsigned));
-
-			if (!p) reader_rd(rd, NULL, ns);
-			else if (c == '[') reader_rd(rd, p, ns);
-			else reader_rdstr(rd, p, ns, nd);
-		}
-	}
-}
-
-static void reader_rdfmt(struct reader *rd, const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	reader_vrdfmt(rd, fmt, ap);
-	va_end(ap);
-}
-
-static int mapf(char *filename, uint8_t **pdata, size_t *plen)
-{
-	int fd;
-	struct stat st;
-
-	*pdata = NULL;
-	*plen = 0;
-	fd = open(filename, O_RDONLY, 0);
-	if (fd < 0)
-		return -1;
-	if (fstat(fd, &st))
-		return -1;
-	*pdata = mmap(NULL, (size_t)st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-	if (*pdata == MAP_FAILED)
-		return close(fd), -1;
-	*plen = (size_t)st.st_size;
-	close(fd);
 	return 0;
-
 }
 
-static int reader_rdhdr(struct reader *rd, struct mach_header *hdr)
-{
-	hdr->magic = (uint32_t)reader_rdbe(rd, 4);
-
-	reader_rdint = hdr->magic == MH_CIGAM || hdr->magic == MH_CIGAM_64 ||
-	               hdr->magic == FAT_CIGAM ? reader_rdle : reader_rdbe;
-
-	reader_rdfmt(rd, "444444",
-	             &hdr->cputype, &hdr->cpusubtype, &hdr->filetype,
-	             &hdr->ncmds, &hdr->sizeofcmds, &hdr->flags);
-
-	if (hdr->magic == MH_MAGIC_64 || hdr->magic == MH_CIGAM_64)
-		reader_rd(rd, NULL, 4);
-
-	return rd->err;
-}
-
-struct sym_entry {
-	uint8_t type;
-	uint8_t sect;
-	uint16_t desc;
-	uint64_t value;
-	const char *name;
-
-	struct sym_entry *next;
+static const struct obj_loader loaders[] = {
+	{ ARCHIVE_MAGIC, archive_load, false },
+	{ ARCHIVE_CIGAM, archive_load, false },
+	{ MH_MAGIC,      direct_load,  false },
+	{ MH_CIGAM,      direct_load,  false },
+	{ MH_MAGIC_64,   direct_load,  true },
+	{ MH_CIGAM_64,   direct_load,  true },
+	{ FAT_MAGIC,     fat_load,     false },
+	{ FAT_CIGAM,     fat_load,     false },
+	{ FAT_MAGIC_64,  fat_load,     true },
+	{ FAT_CIGAM_64,  fat_load,     true },
+	{ 0,             error_load },
 };
 
-//static void sym_entry_dump(struct sym_entry *ent)
-//{
-//	uint8_t stab, pext, type, ext;
-//	char c;
-//
-//	ext  = (uint8_t)(ent->type      & 0x1);
-//	type = (uint8_t)(ent->type << 1 & 0x7);
-//	pext = (uint8_t)(ent->type << 4 & 0x1);
-//	stab = (uint8_t)(ent->type << 5 & 0x7);
-//
-//	switch (ent->sect) {
-//	case N_UNDF: c = 'u'; break;
-//	case N_ABS:  c = 'a'; break;
-//	}
-//}
+int obj_load(const char *obj_filename, int (*load)(struct obj *, bool))
+{
+	int			i;
+	struct stat	st;
+	struct obj  o;
+	uint32_t    *magic;
+	const struct obj_loader *loader;
+
+	if ((i = open(obj_filename, O_RDONLY)) < 0 || fstat(i, &st) < 0)
+		return (-(errno));
+	if ((st.st_mode & S_IFDIR))
+		return (-(errno = NM_EISDIR));
+	o.len = (size_t)st.st_size;
+	if ((o.buf = mmap(NULL, o.len, PROT_READ, MAP_PRIVATE, i, 0)) == MAP_FAILED)
+		return (-(errno));
+	if (close(i))
+		return (-(errno));
+	o.len = 0;
+	o.filename = obj_filename;
+	magic = obj_peek(&o, 0, sizeof(uint32_t));
+	loader = loaders;
+	while (loader->magic && loader->magic != *magic)
+		++loader;
+	i = loader->load(&o, true, load);
+	munmap(o.buf, o.len);
+	return (i);
+}
 
 int main(int ac, char *av[])
 {
-	static struct sym_entry entries[PAGE_SIZE * 4] = { };
-	static uint16_t nentries;
-
 	(void)ac;
-
-	for (const char *av0 = *av++; *av; ++av) {
-		struct reader rd;
-		struct mach_header hdr;
-		struct sym_entry *head = NULL;
-
-		rd.err = 0;
-		rd.off = 0;
-
-		if (mapf(*av, &rd.buf, &rd.len)) {
-			ft_printf("%s: %s\n", av0, ft_strerror(errno));
-			continue;
-		}
-
-		if (reader_rdhdr(&rd, &hdr)) goto done;
-
-		for (uint32_t i = 0; rd.err == 0 && i < hdr.ncmds; ++i) {
-			struct load_command lc = { 0, 0 };
-
-			reader_rdfmt(&rd, "44", &lc.cmd, &lc.cmdsize);
-
-			if (lc.cmd == LC_SYMTAB) {
-				struct symtab_command sc;
-
-				reader_rdfmt(&rd, "4444",
-				             &sc.symoff, &sc.nsyms, &sc.stroff, &sc.strsize);
-
-				if (sc.stroff + sc.strsize > rd.len) {
-					errno = EBADMACHO;
-					goto done;
-				}
-
-				size_t off = rd.off;
-				reader_seek(&rd, sc.symoff);
-
-				for (uint32_t k = 0; k < sc.nsyms; ++k) {
-					struct nlist_64 n_64;
-					struct sym_entry *ent = entries + nentries;
-
-					reader_rdfmt(&rd, "41128", &n_64.n_un.n_strx, &ent->type,
-					             &ent->sect, &ent->desc, &ent->value);
-
-					if (rd.err || sc.stroff + n_64.n_un.n_strx >= rd.len) {
-						errno = EBADMACHO;
-						goto done;
-					}
-
-					ent->name = (const char *)(rd.buf + sc.stroff + n_64.n_un.n_strx);
-
-					struct sym_entry **hd;
-
-					for (hd = &head; *hd; hd = &(*hd)->next)
-						if (strcmp(ent->name, (*hd)->name) < 0)
-						{ ent->next = *hd; break; }
-
-					*hd = ent;
-					++nentries;
-				}
-
-				reader_seek(&rd, off);
-			} else reader_rd(&rd, NULL, lc.cmdsize - sizeof(struct load_command));
-		}
-
-		for (; head; head = head->next)
-			printf("%02x %02x %03x %016llx %s\n", head->type, head->sect,
-			       head->desc, head->value,
-			       head->name);
-
-done:   if (rd.err) ft_printf("%s: %s\n", av0, ft_strerror(errno));
-		munmap(rd.buf, rd.len);
-	}
-
+	(void)av;
 	return 0;
 }

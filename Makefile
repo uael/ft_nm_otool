@@ -31,8 +31,8 @@ else
   ifneq ($(SAN),)
     CONFIG         = san
     TARGET_SUFFIX  = -san
-  	CFLAGS        += -fsanitize=address
-  	LDFLAGS       += -fsanitize=address
+    CFLAGS        += -fsanitize=address
+    LDFLAGS       += -fsanitize=address
   endif
 endif
 
@@ -72,23 +72,13 @@ define target_bin
   $(eval $(call target,$(1),$(2),$(3),TARGET_BIN,OUTBIN_DIR,))
 endef
 
-LIBFT_ROOT_DIR=libft
-include $(LIBFT_ROOT_DIR)/makefile.mk
-
-CFLAGS  += $(LIBFT_CFLAGS)
-LDFLAGS += $(LIBFT_LDFLAGS)
-
-INCLUDE += include
-LDDIRS  += $(OUTLIB_DIR)
-
-include src/makefile.mk
-
-$(TARGET_BIN): $(LIBFT_LIB)
+NM_OTOOL_ROOT_DIR := $(shell pwd)
+include makefile.mk
 
 lib: $(TARGET_LIB)
 bin: $(TARGET_BIN)
 
-all: bin
+all: lib bin
 
 MAKE_DEPS := $(MAKEFILE_LIST) $(BUILD_PATH)
 
@@ -97,7 +87,6 @@ MAKE_DEPS := $(MAKEFILE_LIST) $(BUILD_PATH)
 # ------------------------------------------------------------------------------
 
 V ?= @
-
 
 -include $(addprefix $(BUILD_PATH)/,$(OBJ:.o=.d))
 
@@ -113,12 +102,12 @@ $(BUILD_PATH)/%.o: %.s $(MAKE_DEPS)
 	$(V)$(AS) $< -c $(CFLAGS) $(addprefix -I,$(INCLUDE)) \
 	  $(addprefix -D,$(DEFINE)) -MMD -MF $(@:.o=.d) -o $@
 
-$(TARGET_LIB): | $(MAKE_DEPS)
+$(TARGET_LIB): | $(DEPS) $(MAKE_DEPS)
 	@mkdir -p $(dir $@)
 	@echo "  AR      $(notdir $@)"
 	$(V)$(AR) rcs $@ $^
 
-$(TARGET_BIN): | $(MAKE_DEPS)
+$(TARGET_BIN): | $(DEPS) $(MAKE_DEPS)
 	@mkdir -p $(dir $@)
 	@echo "  LD      $(notdir $@)"
 	$(V)$(LD) $^ $(LDFLAGS) $(addprefix -L,$(LDDIRS)) \
@@ -131,6 +120,6 @@ clean:
 	@rm -rf $(BUILD_DIR)
 
 fclean: clean
-	@rm -rf $(TARGET_BIN)
+	@rm -rf $(TARGET_LIB) $(TARGET_BIN)
 
 re: clean all
