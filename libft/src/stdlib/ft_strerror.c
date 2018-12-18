@@ -101,6 +101,7 @@ static const char *errno_str[] = {
 	[EPROTO] = "Protocol error",
 	[ETIME] = "STREAM ioctl timeout",
 	[ENOTRECOVERABLE] = "State not recoverable",
+	[EBADMACHO] = "Malformed Macho file",
 	[EOWNERDEAD] = "Previous owner died",
 };
 

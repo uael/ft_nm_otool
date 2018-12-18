@@ -175,9 +175,14 @@ static inline int fat_load(const struct obj *const obj, size_t off,
 		uint32_t const arch_off = obj_swap32(obj, arch->offset);
 		const uint32_t *const magic = obj_peek(obj, arch_off, sizeof *magic);
 
-		/* There is no FAT recursion, so check for it */
-		if (magic == NULL || *magic == FAT_MAGIC || *magic == FAT_CIGAM)
+		if (magic == NULL)
 			return -1;
+
+		/* There is no FAT recursion, so check for it */
+		if (*magic == FAT_MAGIC || *magic == FAT_CIGAM) {
+			errno = EBADMACHO;
+			return -1;
+		}
 
 		/* Continue load at new offset */
 		if (load(obj->buf, arch_off, obj->len, collector, user))
@@ -250,7 +255,7 @@ int obj_collect(const char *const filename,
 	struct stat st;
 
 	/* Open the given file and check for validity */
-	if (fd < 0 || fstat(fd, &st))
+	if (fd < 0 || fstat(fd, &st) < 0)
 		return -1;
 
 	size_t const len = (size_t)st.st_size;
