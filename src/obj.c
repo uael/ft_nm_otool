@@ -81,7 +81,7 @@ inline const void *obj_peek(const struct obj *const o, size_t const off,
 							size_t const len)
 {
 	/* `len` argument is only used for bound checking */
-	if (off + len >= o->len) {
+	if (off + len > o->len) {
 		errno = EBADMACHO;
 		return NULL;
 	}
