@@ -1,125 +1,206 @@
+#include "obj.h"
+
+#include <ft/ctype.h>
 #include <ft/stdio.h>
 #include <ft/stdlib.h>
 
-#include <stdbool.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
 #include <errno.h>
 
-#include <mach-o/loader.h>
-#include <mach-o/nlist.h>
-#include <mach-o/stab.h>
-#include <mach-o/swap.h>
-
-struct obj
+struct nm_context
 {
-	const char	*filename;
-	size_t		off;
-	size_t		len;
-	uint8_t		*buf;
+	char sections[UINT8_MAX];
+	uint8_t nsects;
 };
 
-static bool g_is_le;
-
-typedef int t_loader(struct obj *o, bool m,
-					   int (*s)(void *, struct obj *, bool), void *);
-
-struct obj_loader
+struct sym
 {
-	const uint32_t	magic;
-	t_loader *const	load;
-	const bool		m32;
-	const bool		le;
+	struct sym *next;
+
+	const char *string;
+	uint64_t off;
+	uint32_t str_max_size;
+	char type;
 };
 
-void *obj_peek(struct obj *o, size_t off, size_t len)
+static inline int syms_dump(t_stream *const s, struct sym *head)
 {
-	return (o->off + off + len >= o->len ? NULL : o->buf + o->off + off);
+	for (; head; head = head->next) {
+
+		if (head->off || !(head->type == 'u' || head->type == 'U'))
+			ft_fprintf(s, "%0*lx %c %.*s\n",
+					   16, head->off, head->type, head->str_max_size,
+					   head->string);
+
+		else
+			ft_fprintf(s, "  %*c %.*s\n",
+					   16, head->type, head->str_max_size, head->string);
+	}
+
+	return 0;
 }
 
-void obj_seek(struct obj *o, size_t off)
+static inline int symtab_32_collect(obj_t const obj, size_t const off,
+									void *const user)
 {
-	o->off = off;
-}
-
-int fat_load(struct obj *o, bool m32,
-	int (*load)(void *, struct obj *, bool), void *user)
-{
-	return load(user, o, m32);
-}
-
-int direct_load(struct obj *o, bool m32,
-	int (*load)(void *, struct obj *, bool), void *user)
-{
-	return load(user, o, m32);
-}
-
-int	error_load(struct obj *o, bool m32,
-	int (*load)(void *, struct obj *, bool), void *user)
-{
-	(void)o;
-	(void)m32;
-	(void)load;
+	(void)obj;
+	(void)off;
 	(void)user;
-	return (-(errno = EBADMACHO));
+	return 0;
 }
 
-static const struct obj_loader loaders[] = {
-	{ MH_MAGIC,     direct_load, true,  false },
-	{ MH_CIGAM,     direct_load, true,  true },
-	{ MH_MAGIC_64,  direct_load, false, false },
-	{ MH_CIGAM_64,  direct_load, false, true },
-	{ FAT_MAGIC,    fat_load,    true,  false },
-	{ FAT_CIGAM,    fat_load,    true,  true },
-	{ FAT_MAGIC_64, fat_load,    false, false },
-	{ FAT_CIGAM_64, fat_load,    false, true },
-	{ 0,            error_load,  false, false },
+static inline char sym_type(uint64_t const n_value, uint8_t n_type,
+							uint8_t n_sect, uint16_t n_desc,
+							struct nm_context *const ctx)
+{
+	int const type_field = N_TYPE & n_type;
+	char type;
+
+	if (N_STAB & n_type)
+		type = '-';
+	else if (type_field == N_UNDF)
+		type = (char)(n_value ? 'c' : 'u');
+	else if (type_field == N_ABS)
+		type = 'a';
+	else if (type_field == N_SECT && ctx->sections[n_sect - 1])
+		type = ctx->sections[n_sect - 1];
+	else if (type_field == N_PBUD)
+		type = 'u';
+	else if (type_field == N_INDR)
+		type = 'i';
+	else if (n_desc & N_WEAK_REF)
+		type = 'W';
+	else
+		type = '?';
+	return N_EXT & n_type ? (char)ft_toupper(type) : type;
+
+}
+
+static inline int symtab_64_collect(obj_t const obj, size_t const off,
+									void *const user)
+{
+	struct nm_context *const ctx = user;
+	const struct symtab_command *const symtab =
+		obj_peek(obj, off, sizeof *symtab);
+
+	if (symtab == NULL)
+		return -1;
+
+	uint32_t const stroff = obj_swap32(obj, symtab->stroff);
+	uint32_t const strsize = obj_swap32(obj, symtab->strsize);
+
+	if (obj_peek(obj, stroff, strsize) == NULL)
+		return -1;
+
+	uint32_t const symoff = obj_swap32(obj, symtab->symoff);
+	uint32_t const nsyms = obj_swap32(obj, symtab->nsyms);
+
+	const struct nlist_64 *const nlist =
+		obj_peek(obj, symoff, sizeof(*nlist) * nsyms);
+
+	if (nlist == NULL)
+		return -1;
+
+	struct sym *head = NULL, **it, syms[nsyms];
+
+	for (uint32_t i = 0; i < nsyms; ++i) {
+
+		if (nlist[i].n_sect != NO_SECT &&
+			nlist[i].n_sect > COUNT_OF(ctx->sections))
+			return -1;
+
+		const uint32_t offset = stroff + obj_swap32(obj, nlist[i].n_un.n_strx);
+
+		syms[i] = (struct sym){
+			.str_max_size = stroff + strsize - offset,
+			.string = obj_peek(obj, offset, stroff + strsize - offset),
+			.type = sym_type(obj_swap64(obj, nlist[i].n_value), nlist[i].n_type,
+							 nlist[i].n_sect, obj_swap16(obj, nlist[i].n_desc),
+							 ctx),
+			.off = obj_swap64(obj, nlist[i].n_value)
+		};
+
+		/* Save some instructions by insert sorted
+		 * into the symbol linked list */
+		for (it = &head; *it; it = &(*it)->next)
+			if (ft_strcmp(syms[i].string, (*it)->string) < 0) {
+				syms[i].next = *it;
+				break;
+			}
+
+		*it = syms + i;
+	}
+
+	return syms_dump(g_stdout, head);
+}
+
+static int symtab_collect(obj_t const obj, const size_t off, void *const user)
+{
+	static obj_collector_t *const collectors[] = {
+		[false] = symtab_32_collect,
+		[true]  = symtab_64_collect
+	};
+
+	return collectors[obj_ism64(obj)](obj, off, user);
+}
+
+static int segment_collect(obj_t const obj, size_t off, void *const user)
+{
+	struct nm_context *const ctx = user;
+	const struct segment_command *const seg = obj_peek(obj, off, sizeof *seg);
+
+	if (seg == NULL)
+		return -1;
+
+	off += sizeof *seg;
+
+	/* Loop though section and collect each one
+	 * section is next to it's header */
+	for (uint32_t nsects = obj_swap32(obj, seg->nsects); nsects--;) {
+
+		if (ctx->nsects == COUNT_OF(ctx->sections))
+			return -1;
+
+		/* Peek the section structure */
+		const struct section *const sect = obj_peek(obj, off, sizeof *sect);
+
+		if (sect == NULL)
+			return -1;
+
+		if (ft_strcmp("__text", sect->sectname) == 0)
+			ctx->sections[ctx->nsects++] = 't';
+		else if (ft_strcmp("__data", sect->sectname) == 0)
+			ctx->sections[ctx->nsects++] = 'd';
+		else if (ft_strcmp("__bss", sect->sectname) == 0)
+			ctx->sections[ctx->nsects++] = 'b';
+		else
+			ctx->sections[ctx->nsects++] = 's';
+
+		static const size_t section_size[] = {
+			[false] = sizeof(struct section),
+			[true]  = sizeof(struct section_64)
+		};
+
+		off += section_size[obj_ism64(obj)];
+	}
+
+	return 0;
+}
+
+static const struct obj_collector nm_collector = {
+	.ncollector = LC_SEGMENT_64 + 1,
+	.collectors = {
+		[LC_SYMTAB]     = symtab_collect,
+		[LC_SEGMENT]    = segment_collect,
+		[LC_SEGMENT_64] = segment_collect,
+	}
 };
-
-int		obj_load(const char *obj_filename,
-		int (*load)(void *, struct obj *, bool), void *user)
-{
-	int						i;
-	struct stat				st;
-	struct obj				o;
-	const uint32_t			*magic;
-	const struct obj_loader	*loader;
-
-	if ((i = open(obj_filename, O_RDONLY)) < 0 || fstat(i, &st) < 0)
-		return (-(errno));
-	if ((st.st_mode & S_IFDIR))
-		return (-(errno = EISDIR));
-	o.len = (size_t)st.st_size;
-	if ((o.buf = mmap(NULL, o.len, PROT_READ, MAP_PRIVATE, i, 0)) == MAP_FAILED)
-		return (-(errno));
-	if (close(i))
-		return (-(errno));
-	o.filename = obj_filename;
-	if (!(magic = obj_peek(&o, 0, sizeof(uint32_t))))
-		return (-(errno = EBADMACHO));
-	loader = loaders;
-	while (loader->magic && loader->magic != *magic)
-		++loader;
-	g_is_le = loader->le;
-	i = loader->load(&o, loader->m32, load, user);
-	munmap(o.buf, o.len);
-	return (i);
-}
-
-int nm_load(void *user, struct obj *o, bool m32)
-{
-	(void)user;
-	(void)o;
-	(void)m32;
-	return (0);
-}
 
 int main(int ac, char *av[])
 {
 	int err;
+	struct nm_context ctx = { };
 
-	err = ac > 1 ? obj_load(av[1], nm_load, NULL) : 0;
+	err = ac > 1 ? obj_collect(av[1], &nm_collector, &ctx) : 0;
 	if (err)
 		ft_fprintf(g_stderr, "%s: %s\n", av[0], ft_strerror(errno));
 	return (err);
