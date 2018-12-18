@@ -11,6 +11,7 @@
 /* ************************************************************************** */
 
 #include "obj.h"
+#include "../../../osxcross/target/SDK/MacOSX10.11.sdk/usr/include/mach-o/loader.h"
 
 #include <ft/ctype.h>
 #include <ft/stdio.h>
@@ -247,12 +248,48 @@ static int segment_collect(obj_t const obj, size_t off, void *const user)
 		else
 			ctx->sections[ctx->nsects++] = 's';
 
-		static const size_t section_size[] = {
-			[false] = sizeof(struct section),
-			[true]  = sizeof(struct section_64)
-		};
+		off += sizeof *sect;
+	}
 
-		off += section_size[obj_ism64(obj)];
+	return 0;
+}
+
+static int segment_64_collect(obj_t const obj, size_t off, void *const user)
+{
+	struct nm_context *const ctx = user;
+	const struct segment_command_64 *const seg = obj_peek(obj, off, sizeof *seg);
+
+	if (seg == NULL)
+		return -1;
+
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(obj))
+		return -1;
+
+	off += sizeof *seg;
+
+	/* Loop though section and collect each one
+	 * section is next to it's header */
+	for (uint32_t nsects = obj_swap32(obj, seg->nsects); nsects--;) {
+
+		if (ctx->nsects == COUNT_OF(ctx->sections))
+			return -1;
+
+		/* Peek the section structure */
+		const struct section_64 *const sect = obj_peek(obj, off, sizeof *sect);
+
+		if (sect == NULL)
+			return -1;
+
+		if (ft_strcmp("__text", sect->sectname) == 0)
+			ctx->sections[ctx->nsects++] = 't';
+		else if (ft_strcmp("__data", sect->sectname) == 0)
+			ctx->sections[ctx->nsects++] = 'd';
+		else if (ft_strcmp("__bss", sect->sectname) == 0)
+			ctx->sections[ctx->nsects++] = 'b';
+		else
+			ctx->sections[ctx->nsects++] = 's';
+
+		off += sizeof *sect;
 	}
 
 	return 0;
@@ -264,7 +301,7 @@ static const struct obj_collector nm_collector = {
 	.collectors = {
 		[LC_SYMTAB]     = symtab_collect,
 		[LC_SEGMENT]    = segment_collect,
-		[LC_SEGMENT_64] = segment_collect,
+		[LC_SEGMENT_64] = segment_64_collect,
 	}
 };
 
