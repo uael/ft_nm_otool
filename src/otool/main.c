@@ -34,58 +34,6 @@ static inline void dump(const char *text, uint64_t offset, uint64_t size)
 	}
 }
 
-static inline int section_dump(obj_t const obj, size_t off)
-{
-	/* Peek the section structure */
-	const struct section *const sect = obj_peek(obj, off, sizeof *sect);
-
-	if (sect == NULL)
-		return -1;
-
-	if (ft_strcmp("__TEXT", sect->segname) == 0 &&
-		ft_strcmp("__text", sect->sectname) == 0) {
-
-		uint64_t const addr = obj_swap32(obj, sect->addr);
-		uint64_t const size = obj_swap32(obj, sect->size);
-
-		const char *const text = obj_peek(obj, addr, size);
-
-		if (text == NULL)
-			return -1;
-
-		/* It's a valid text section, dump it.. */
-		dump(text, addr, size);
-	}
-
-	return 0;
-}
-
-static inline int section_64_dump(obj_t const obj, size_t off)
-{
-	/* Peek the section structure */
-	const struct section_64 *const sect = obj_peek(obj, off, sizeof *sect);
-
-	if (sect == NULL)
-		return -1;
-
-	if (ft_strcmp("__TEXT", sect->segname) == 0 &&
-		ft_strcmp("__text", sect->sectname) == 0) {
-
-		uint64_t const addr = obj_swap64(obj, sect->addr);
-		uint64_t const size = obj_swap64(obj, sect->size);
-
-		const char *const text = obj_peek(obj, addr, size);
-
-		if (text == NULL)
-			return -1;
-
-		/* It's a valid text section, dump it.. */
-		dump(text, addr, size);
-	}
-
-	return 0;
-}
-
 static int segment_collect(obj_t const obj, size_t off, void *const user)
 {
 	(void)user;
@@ -94,8 +42,10 @@ static int segment_collect(obj_t const obj, size_t off, void *const user)
 	if (seg == NULL)
 		return -1;
 
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(obj))
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(obj)) {
+		errno = EBADMACHO;
 		return -1;
+	}
 
 	/* Only dump section's of __TEXT segment */
 	if (ft_strcmp("__TEXT", seg->segname) != 0)
@@ -107,20 +57,78 @@ static int segment_collect(obj_t const obj, size_t off, void *const user)
 	 * section is next to it's header */
 	for (uint32_t nsects = obj_swap32(obj, seg->nsects); nsects--;) {
 
-		static int (*const sect_dump[])(obj_t, size_t) = {
-			[false] = section_dump,
-			[true]  = section_64_dump
-		};
+		/* Peek the section structure */
+		const struct section *const sect = obj_peek(obj, off, sizeof *sect);
 
-		if (sect_dump[obj_ism64(obj)](obj, off))
+		if (sect == NULL)
 			return -1;
 
-		static const size_t section_size[] = {
-			[false] = sizeof(struct section),
-			[true]  = sizeof(struct section_64)
-		};
+		if (ft_strcmp("__TEXT", sect->segname) == 0 &&
+			ft_strcmp("__text", sect->sectname) == 0) {
 
-		off += section_size[obj_ism64(obj)];
+			uint64_t const addr = obj_swap32(obj, sect->addr);
+			uint64_t const size = obj_swap32(obj, sect->size);
+
+			const char *const text = obj_peek(obj, addr, size);
+
+			if (text == NULL)
+				return -1;
+
+			/* It's a valid text section, dump it.. */
+			dump(text, addr, size);
+		}
+
+		off += sizeof *sect;
+	}
+
+	return 0;
+}
+
+static int segment_64_collect(obj_t const obj, size_t off, void *const user)
+{
+	(void)user;
+	const struct segment_command_64 *const seg = obj_peek(obj, off, sizeof *seg);
+
+	if (seg == NULL)
+		return -1;
+
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(obj)) {
+		errno = EBADMACHO;
+		return -1;
+	}
+
+	/* Only dump section's of __TEXT segment */
+	if (ft_strcmp("__TEXT", seg->segname) != 0)
+		return 0;
+
+	off += sizeof *seg;
+
+	/* Loop though section and collect each one
+	 * section is next to it's header */
+	for (uint32_t nsects = obj_swap32(obj, seg->nsects); nsects--;) {
+
+		/* Peek the section structure */
+		const struct section_64 *const sect = obj_peek(obj, off, sizeof *sect);
+
+		if (sect == NULL)
+			return -1;
+
+		if (ft_strcmp("__TEXT", sect->segname) == 0 &&
+			ft_strcmp("__text", sect->sectname) == 0) {
+
+			uint64_t const addr = obj_swap64(obj, sect->addr);
+			uint64_t const size = obj_swap64(obj, sect->size);
+
+			const char *const text = obj_peek(obj, addr, size);
+
+			if (text == NULL)
+				return -1;
+
+			/* It's a valid text section, dump it.. */
+			dump(text, addr, size);
+		}
+
+		off += sizeof *sect;
 	}
 
 	return 0;
@@ -131,7 +139,7 @@ static const struct obj_collector nm_collector = {
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SEGMENT]    = segment_collect,
-		[LC_SEGMENT_64] = segment_collect,
+		[LC_SEGMENT_64] = segment_64_collect,
 	}
 };
 

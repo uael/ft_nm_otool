@@ -110,8 +110,10 @@ static inline int symtab_32_collect(obj_t const obj, size_t const off,
 	for (uint32_t i = 0; i < nsyms; ++i) {
 
 		if (nlist[i].n_sect != NO_SECT &&
-			nlist[i].n_sect > COUNT_OF(ctx->sections))
+			nlist[i].n_sect > COUNT_OF(ctx->sections)) {
+			errno = EBADMACHO;
 			return -1;
+		}
 
 		const uint32_t offset = stroff + obj_swap32(obj, nlist[i].n_un.n_strx);
 
@@ -168,8 +170,10 @@ static inline int symtab_64_collect(obj_t const obj, size_t const off,
 	for (uint32_t i = 0; i < nsyms; ++i) {
 
 		if (nlist[i].n_sect != NO_SECT &&
-			nlist[i].n_sect > COUNT_OF(ctx->sections))
+			nlist[i].n_sect > COUNT_OF(ctx->sections)) {
+			errno = EBADMACHO;
 			return -1;
+		}
 
 		const uint32_t offset = stroff + obj_swap32(obj, nlist[i].n_un.n_strx);
 
@@ -220,8 +224,10 @@ static int segment_collect(obj_t const obj, size_t off, void *const user)
 	if (seg == NULL)
 		return -1;
 
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(obj))
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(obj)) {
+		errno = EBADMACHO;
 		return -1;
+	}
 
 	off += sizeof *seg;
 
@@ -229,8 +235,10 @@ static int segment_collect(obj_t const obj, size_t off, void *const user)
 	 * section is next to it's header */
 	for (uint32_t nsects = obj_swap32(obj, seg->nsects); nsects--;) {
 
-		if (ctx->nsects == COUNT_OF(ctx->sections))
+		if (ctx->nsects == COUNT_OF(ctx->sections)) {
+			errno = EBADMACHO;
 			return -1;
+		}
 
 		/* Peek the section structure */
 		const struct section *const sect = obj_peek(obj, off, sizeof *sect);
@@ -261,8 +269,10 @@ static int segment_64_collect(obj_t const obj, size_t off, void *const user)
 	if (seg == NULL)
 		return -1;
 
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(obj))
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(obj)) {
+		errno = EBADMACHO;
 		return -1;
+	}
 
 	off += sizeof *seg;
 
