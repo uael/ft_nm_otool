@@ -11,7 +11,6 @@
 /* ************************************************************************** */
 
 #include "obj.h"
-#include "../../osxcross/target/SDK/MacOSX10.11.sdk/usr/include/mach-o/loader.h"
 
 #include <ft/cdefs.h>
 
