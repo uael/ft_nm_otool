@@ -21,6 +21,10 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
+
+/**
+ * Mach-o object definition
+ */
 struct obj
 {
 	const uint8_t *buf;
@@ -29,28 +33,54 @@ struct obj
 	bool le;
 };
 
+
+/* --- Endianness --- */
+
+/**
+ * Swap 16 bits unsigned integer according to object endianness
+ */
 uint16_t obj_swap16(const struct obj *o, uint16_t u)
 {
 	return o->le ? OSSwapConstInt16(u) : u;
 }
 
+/**
+ * Swap 32 bits unsigned integer according to object endianness
+ */
 uint32_t obj_swap32(const struct obj *o, uint32_t u)
 {
 	return o->le ? OSSwapConstInt32(u) : u;
 }
 
+/**
+ * Swap 64 bits unsigned integer according to object endianness
+ */
 uint64_t obj_swap64(const struct obj *o, uint64_t u)
 {
 	return o->le ? OSSwapConstInt64(u) : u;
 }
 
+
+/* --- Architecture --- */
+
+/**
+ * Peek sized data at offset on Mach-o object
+ */
 bool obj_ism64(const struct obj *o)
 {
 	return o->m64;
 }
 
-const void *obj_peek(const struct obj *o, size_t off, size_t len)
+
+/* --- Collection --- */
+
+/**
+ * Retrieve if this Mach-o object is 64 bits based
+ */
+const void *obj_peek(const struct obj *const o, size_t const off,
+					 size_t const len)
 {
+	/* `len` argument is only used for bound checking */
 	if (off + len >= o->len) {
 		errno = EBADMACHO;
 		return NULL;
@@ -59,6 +89,9 @@ const void *obj_peek(const struct obj *o, size_t off, size_t len)
 	return o->buf + off;
 }
 
+/**
+ * Different archive load
+ */
 static int load(const uint8_t *buf, size_t off, size_t len,
 				const struct obj_collector *collector, void *user);
 
@@ -154,86 +187,84 @@ static int fat_load(const struct obj *const obj, size_t off,
 }
 
 /**
- * Dummy loader called on unknown or unsupported archive fromat
- * @param obj        [in] Mach-o object
- * @param off        [in] Stating offset
- * @param collector  [in] User collector's
- * @return           0 on success, -1 otherwise with `errno` set
+ * Different archive load
+ * @param buf        [in] Mach-o object file buffer
+ * @param off        [in] Load offset
+ * @param len        [in] Mach-o object file size
+ * @param collector  [in] User collection call-back's
+ * @param user       [in] Optional user parameter
+ * @return                0 on success, -1 otherwise with `errno` set
  */
-static int err_load(const struct obj *const obj, const size_t off,
-					const struct obj_collector *const collector, void *user)
-{
-	(void)obj,
-		(void)off,
-		(void)collector;
-	(void)user;
-
-	errno = EBADMACHO;
-	return -1;
-}
-
 static int load(const uint8_t *buf, size_t off, size_t len,
 				const struct obj_collector *collector, void *user)
 {
-	static const struct
-	{
+	static const struct {
 		uint32_t magic;
-		bool m64;
-		bool le;
-
+		bool m64, le;
 		int (*load)(const struct obj *, size_t,
 					const struct obj_collector *, void *);
 	} loaders[] = {
-		{ MH_MAGIC,    false, false, lc_load },
-		{ MH_CIGAM,    false, true,  lc_load },
-		{ MH_MAGIC_64, true,  false, lc_load },
-		{ MH_CIGAM_64, true,  true,  lc_load },
+		{ MH_MAGIC,    false, false, lc_load  },
+		{ MH_CIGAM,    false, true,  lc_load  },
+		{ MH_MAGIC_64, true,  false, lc_load  },
+		{ MH_CIGAM_64, true,  true,  lc_load  },
 		{ FAT_MAGIC,   false, false, fat_load },
 		{ FAT_CIGAM,   false, true,  fat_load },
-		{ 0,           false, false, err_load },
 	};
 
 	unsigned i;
 
+	/* Using the Mach-o magic, dispatch to the appropriate loader,
+	 * then retrieve LE mode and M64 */
 	for (i = 0; i < COUNT_OF(loaders) &&
 				loaders[i].magic != *(uint32_t *)(buf + off); ++i);
+
+	/* Unable to find proper loader for this magic */
+	if (i == COUNT_OF(loaders)) {
+		errno = EBADMACHO;
+		return -1;
+	}
 
 	const struct obj o = (struct obj){
 		.buf = buf, .len = len,
 		.m64 = loaders[i].m64, .le = loaders[i].le
 	};
 
+	/* Dispatch collection call-back's to correct loader,
+	 * loader maybe the `err_load` one if zero match */
 	return loaders[i].load(&o, off, collector, user);
 }
 
-int obj_collect(const char *filename,
-				const struct obj_collector *collector, void *user)
+/**
+ * Collect though a Mach-o object
+ */
+int obj_collect(const char *const filename,
+				const struct obj_collector *const collector, void *const user)
 {
-	int fd, err;
+	int const fd = open(filename, O_RDONLY);
 	struct stat st;
-	void *buf;
-	size_t len;
 
-	if ((fd = open(filename, O_RDONLY)) < 0)
+	/* Open the given file and check for validity */
+	if (fd < 0 || fstat(fd, &st))
 		return -1;
 
-	if (fstat(fd, &st) < 0)
-		return -1;
+	size_t const len = (size_t)st.st_size;
 
-	if ((len = (size_t)st.st_size) < sizeof(uint32_t))
+	if (len < sizeof(uint32_t))
 		return (errno = EBADMACHO), -1;
-
 	if ((st.st_mode & S_IFDIR))
 		return (errno = EISDIR), -1;
 
-	if ((buf = mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED)
+	/* Then map the whole file into a buffer,
+	 * map file read only */
+	void *const buf = mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (buf == MAP_FAILED || close(fd))
 		return -1;
 
-	if (close(fd))
-		return -1;
-
-	err = load(buf, 0, len, collector, user);
-
+	/* Start loading,
+	 * then unmap file and break */
+	int const err = load(buf, 0, len, collector, user);
 	munmap(buf, len);
+
 	return err;
 }

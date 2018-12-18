@@ -16,8 +16,10 @@
 # Configuration
 # ------------------------------------------------------------------------------
 
-CC     := gcc
-LD     := gcc
+CC     := /home/uael/work/osxcross/target/bin/x86_64-apple-darwin15-clang
+AS     := /home/uael/work/osxcross/target/bin/x86_64-apple-darwin15-clang
+LD     := /home/uael/work/osxcross/target/bin/x86_64-apple-darwin15-clang
+AR     := /home/uael/work/osxcross/target/bin/x86_64-apple-darwin15-ar
 CFLAGS += -Wall -Wextra -Werror
 
 ifeq ($(DEBUG),)
@@ -36,11 +38,10 @@ else
   endif
 endif
 
-PREFIX     ?= .
 BUILD_DIR  ?= build
 BUILD_PATH ?= $(BUILD_DIR)/$(CONFIG)
-OUTLIB_DIR ?= $(PREFIX)/lib
-OUTBIN_DIR ?= $(PREFIX)/bin
+OUTLIB_DIR ?= $(BUILD_DIR)/lib
+OUTBIN_DIR ?= $(BUILD_DIR)/bin
 
 # ------------------------------------------------------------------------------
 # Sources & Target

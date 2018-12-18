@@ -3,8 +3,10 @@ LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/ctype/ft_isalpha.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/ctype/ft_isascii.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/ctype/ft_iscntrl.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/ctype/ft_isdigit.o
+LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/ctype/ft_islower.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/ctype/ft_isprint.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/ctype/ft_isspace.o
+LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/ctype/ft_isupper.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/ctype/ft_tolower.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/ctype/ft_toupper.o
 
