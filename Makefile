@@ -16,10 +16,10 @@
 # Configuration
 # ------------------------------------------------------------------------------
 
-CC     := /home/uael/work/osxcross/target/bin/x86_64-apple-darwin15-clang
-AS     := /home/uael/work/osxcross/target/bin/x86_64-apple-darwin15-clang
-LD     := /home/uael/work/osxcross/target/bin/x86_64-apple-darwin15-clang
-AR     := /home/uael/work/osxcross/target/bin/x86_64-apple-darwin15-ar
+CC     := gcc
+AS     := gcc
+LD     := gcc
+AR     := ar
 CFLAGS += -Wall -Wextra -Werror
 
 ifeq ($(DEBUG),)
