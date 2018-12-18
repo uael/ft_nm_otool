@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <stdlib.h>
 
+
 struct nm_context
 {
 	char sections[UINT8_MAX];
@@ -197,6 +198,12 @@ static inline int symtab_64_collect(obj_t const obj, size_t const off,
 
 static int symtab_collect(obj_t const obj, const size_t off, void *const user)
 {
+	struct nm_context *const ctx = user;
+
+	/* Symtab before text section ? */
+	if (ctx->nsects == 0)
+		return -1;
+
 	static obj_collector_t *const collectors[] = {
 		[false] = symtab_32_collect,
 		[true]  = symtab_64_collect

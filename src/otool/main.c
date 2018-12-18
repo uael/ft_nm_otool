@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <stdlib.h>
 
+
 static inline void dump(const char *text, uint64_t offset, uint64_t size)
 {
 	ft_printf("Contents of (__TEXT,__text) section\n");

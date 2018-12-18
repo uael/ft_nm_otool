@@ -26,7 +26,7 @@
 /**
  * Mach-o object type definition
  */
-typedef const struct obj* obj_t;
+typedef const struct obj *obj_t;
 
 
 /* --- Endianness --- */

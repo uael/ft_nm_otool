@@ -39,7 +39,7 @@ struct obj
 /**
  * Swap 16 bits unsigned integer according to object endianness
  */
-uint16_t obj_swap16(const struct obj *o, uint16_t u)
+inline uint16_t obj_swap16(const struct obj *o, uint16_t u)
 {
 	return o->le ? OSSwapConstInt16(u) : u;
 }
@@ -47,7 +47,7 @@ uint16_t obj_swap16(const struct obj *o, uint16_t u)
 /**
  * Swap 32 bits unsigned integer according to object endianness
  */
-uint32_t obj_swap32(const struct obj *o, uint32_t u)
+inline uint32_t obj_swap32(const struct obj *o, uint32_t u)
 {
 	return o->le ? OSSwapConstInt32(u) : u;
 }
@@ -55,7 +55,7 @@ uint32_t obj_swap32(const struct obj *o, uint32_t u)
 /**
  * Swap 64 bits unsigned integer according to object endianness
  */
-uint64_t obj_swap64(const struct obj *o, uint64_t u)
+inline uint64_t obj_swap64(const struct obj *o, uint64_t u)
 {
 	return o->le ? OSSwapConstInt64(u) : u;
 }
@@ -66,7 +66,7 @@ uint64_t obj_swap64(const struct obj *o, uint64_t u)
 /**
  * Peek sized data at offset on Mach-o object
  */
-bool obj_ism64(const struct obj *o)
+inline bool obj_ism64(const struct obj *o)
 {
 	return o->m64;
 }
@@ -77,8 +77,8 @@ bool obj_ism64(const struct obj *o)
 /**
  * Retrieve if this Mach-o object is 64 bits based
  */
-const void *obj_peek(const struct obj *const o, size_t const off,
-					 size_t const len)
+inline const void *obj_peek(const struct obj *const o, size_t const off,
+							size_t const len)
 {
 	/* `len` argument is only used for bound checking */
 	if (off + len >= o->len) {
@@ -99,11 +99,12 @@ static int load(const uint8_t *buf, size_t off, size_t len,
  * Start at `mach_header` and collect each `load_command`
  * @param obj        [in] Mach-o object
  * @param off        [in] Stating offset
- * @param collector  [in] User collector's
+ * @param collector  [in] User collection call-back's
+ * @param user       [in] Optional user parameter
  * @return           0 on success, -1 otherwise with `errno` set
  */
-static int lc_load(const struct obj *o, size_t off,
-				   const struct obj_collector *collectors, void *user)
+static inline int lc_load(const struct obj *o, size_t off,
+						  const struct obj_collector *collectors, void *user)
 {
 	const struct mach_header *const header = obj_peek(o, off, sizeof *header);
 
@@ -144,11 +145,13 @@ static int lc_load(const struct obj *o, size_t off,
  * Start at `fat_header` and load each `fat_arch`
  * @param obj        [in] Mach-o object
  * @param off        [in] Stating offset
- * @param collector  [in] User collector's
+ * @param collector  [in] User collection call-back's
+ * @param user       [in] Optional user parameter
  * @return           0 on success, -1 otherwise with `errno` set
  */
-static int fat_load(const struct obj *const obj, size_t off,
-					const struct obj_collector *const collector, void *user)
+static inline int fat_load(const struct obj *const obj, size_t off,
+						   const struct obj_collector *const collector,
+						   void *user)
 {
 	const struct fat_header *const header = obj_peek(obj, off, sizeof *header);
 
@@ -198,16 +201,18 @@ static int fat_load(const struct obj *const obj, size_t off,
 static int load(const uint8_t *buf, size_t off, size_t len,
 				const struct obj_collector *collector, void *user)
 {
-	static const struct {
+	static const struct
+	{
 		uint32_t magic;
 		bool m64, le;
+
 		int (*load)(const struct obj *, size_t,
 					const struct obj_collector *, void *);
 	} loaders[] = {
-		{ MH_MAGIC,    false, false, lc_load  },
-		{ MH_CIGAM,    false, true,  lc_load  },
-		{ MH_MAGIC_64, true,  false, lc_load  },
-		{ MH_CIGAM_64, true,  true,  lc_load  },
+		{ MH_MAGIC,    false, false, lc_load },
+		{ MH_CIGAM,    false, true,  lc_load },
+		{ MH_MAGIC_64, true,  false, lc_load },
+		{ MH_CIGAM_64, true,  true,  lc_load },
 		{ FAT_MAGIC,   false, false, fat_load },
 		{ FAT_CIGAM,   false, true,  fat_load },
 	};
