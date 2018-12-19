@@ -109,3 +109,10 @@ LIBFT_STDIO_OBJ += $(LIBFT_ROOT_DIR)/src/stdio/internal/type.o
 ifeq (1,$(FT_STDIO_ENABLE))
   LIBFT_OBJ += $(LIBFT_STDIO_OBJ)
 endif
+
+LIBFT_OPTS_OBJ += $(LIBFT_ROOT_DIR)/src/opts/ft_optparse.o
+LIBFT_OPTS_OBJ += $(LIBFT_ROOT_DIR)/src/opts/ft_optusage.o
+
+ifeq (1,$(FT_OPTS_ENABLE))
+  LIBFT_OBJ += $(LIBFT_OPTS_OBJ)
+endif

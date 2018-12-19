@@ -19,13 +19,13 @@
 #include <errno.h>
 #include <stdlib.h>
 
-
-static inline void dump(const char *text, uint64_t offset, uint64_t size)
+static inline void dump(const char *text, uint64_t offset, uint64_t size,
+						unsigned padd)
 {
 	ft_printf("Contents of (__TEXT,__text) section\n");
 
 	for (uint64_t i = 0; i < size; i += 0x10) {
-		ft_printf("%016llx\t", offset + i);
+		ft_printf("%0*llx\t", padd, offset + i);
 
 		for (uint64_t j = 0; j < 0x10 && i + j < size; ++j)
 			ft_printf("%02hhx ", text[i + j]);
@@ -66,16 +66,17 @@ static int segment_collect(obj_t const obj, size_t off, void *const user)
 		if (ft_strcmp("__TEXT", sect->segname) == 0 &&
 			ft_strcmp("__text", sect->sectname) == 0) {
 
-			uint64_t const addr = obj_swap32(obj, sect->addr);
-			uint64_t const size = obj_swap32(obj, sect->size);
+			uint64_t const offset = obj_swap32(obj, sect->offset);
+			uint64_t const addr   = obj_swap32(obj, sect->addr);
+			uint64_t const size   = obj_swap32(obj, sect->size);
 
-			const char *const text = obj_peek(obj, addr, size);
+			const char *const text = obj_peek(obj, offset, size);
 
 			if (text == NULL)
 				return -1;
 
 			/* It's a valid text section, dump it.. */
-			dump(text, addr, size);
+			dump(text, addr, size, 8);
 		}
 
 		off += sizeof *sect;
@@ -87,7 +88,8 @@ static int segment_collect(obj_t const obj, size_t off, void *const user)
 static int segment_64_collect(obj_t const obj, size_t off, void *const user)
 {
 	(void)user;
-	const struct segment_command_64 *const seg = obj_peek(obj, off, sizeof *seg);
+	const struct segment_command_64 *const seg =
+		obj_peek(obj, off, sizeof *seg);
 
 	if (seg == NULL)
 		return -1;
@@ -116,16 +118,17 @@ static int segment_64_collect(obj_t const obj, size_t off, void *const user)
 		if (ft_strcmp("__TEXT", sect->segname) == 0 &&
 			ft_strcmp("__text", sect->sectname) == 0) {
 
-			uint64_t const addr = obj_swap64(obj, sect->addr);
-			uint64_t const size = obj_swap64(obj, sect->size);
+			uint64_t const offset = obj_swap64(obj, sect->offset);
+			uint64_t const addr   = obj_swap64(obj, sect->addr);
+			uint64_t const size   = obj_swap64(obj, sect->size);
 
-			const char *const text = obj_peek(obj, addr, size);
+			const char *const text = obj_peek(obj, offset, size);
 
 			if (text == NULL)
 				return -1;
 
 			/* It's a valid text section, dump it.. */
-			dump(text, addr, size);
+			dump(text, addr, size, 16);
 		}
 
 		off += sizeof *sect;
@@ -151,6 +154,9 @@ int main(int ac, char *av[])
 	/* There is no argument, try to dump the bin name `a.out` */
 	if (ac < 2) {
 
+		/* Indicate filename before hexdump */
+		ft_printf("%s:\n", "a.out");
+
 		/* Collect Mach-o object using otool collectors */
 		if (obj_collect("a.out", &nm_collector, NULL)) {
 
@@ -165,9 +171,8 @@ int main(int ac, char *av[])
 	/* Loop though argument and dump each one */
 	while (*++av) {
 
-		/* Add some indication btw two output */
-		if (ac > 2)
-			ft_fprintf(g_stdout, "\n%s:\n", *av);
+		/* Indicate filename before hexdump */
+		ft_printf("%s:\n", *av);
 
 		/* Collect Mach-o object using otool collectors */
 		if (obj_collect(*av, &nm_collector, NULL)) {
