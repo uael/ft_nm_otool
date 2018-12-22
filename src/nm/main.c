@@ -419,7 +419,7 @@ int main(int ac, char *av[])
 	}
 
 	/* Default file if none */
-	if (i == ac) av[i++] = "a.out";
+	if (i == ac) av[ac++] = "a.out";
 
 	/* Loop though argument and dump each one */
 	for (; i < ac; ++i) {
