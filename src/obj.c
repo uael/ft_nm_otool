@@ -195,6 +195,25 @@ static inline int fat_load(const struct obj *const obj, size_t off,
 }
 
 /**
+ * Start at `ar_header` and load each ar object
+ * @param obj        [in] Mach-o object
+ * @param off        [in] Stating offset
+ * @param collector  [in] User collection call-back's
+ * @param user       [in] Optional user parameter
+ * @return           0 on success, -1 otherwise with `errno` set
+ */
+static inline int ar_load(const struct obj *const obj, size_t off,
+						  const struct obj_collector *const collector,
+						  void *user)
+{
+	(void)obj;
+	(void)off;
+	(void)collector;
+	(void)user;
+	return 0;
+}
+
+/**
  * Different archive load
  * @param buf        [in] Mach-o object file buffer
  * @param off        [in] Load offset
@@ -214,12 +233,14 @@ static int load(const uint8_t *buf, size_t off, size_t len,
 		int (*load)(const struct obj *, size_t,
 					const struct obj_collector *, void *);
 	} loaders[] = {
-		{ MH_MAGIC,    false, false, lc_load },
-		{ MH_CIGAM,    false, true,  lc_load },
-		{ MH_MAGIC_64, true,  false, lc_load },
-		{ MH_CIGAM_64, true,  true,  lc_load },
+		{ MH_MAGIC,    false, false, lc_load  },
+		{ MH_CIGAM,    false, true,  lc_load  },
+		{ MH_MAGIC_64, true,  false, lc_load  },
+		{ MH_CIGAM_64, true,  true,  lc_load  },
 		{ FAT_MAGIC,   false, false, fat_load },
 		{ FAT_CIGAM,   false, true,  fat_load },
+		{ AR_MAGIC,    false, false, ar_load  },
+		{ AR_CIGAM,    false, true,  ar_load  },
 	};
 
 	unsigned i;

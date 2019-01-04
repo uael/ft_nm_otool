@@ -89,7 +89,7 @@ MAKE_DEPS := $(MAKEFILE_LIST)
 
 V ?= @
 
--include $(addprefix $(BUILD_PATH)/,$(OBJ:.o=.d))
+-include $(addprefix $(BUILD_PATH)/,$(patsubst %.o,%.d,$(OBJ)))
 
 $(BUILD_PATH)/%.o: %.c $(MAKE_DEPS)
 	@mkdir -p $(dir $@)

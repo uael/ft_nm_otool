@@ -17,11 +17,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <ar.h>
 #include <mach-o/loader.h>
 #include <mach-o/nlist.h>
 #include <mach-o/stab.h>
 #include <mach-o/swap.h>
 
+#define AR_CIGAM  (0x72613C21)
+#define AR_MAGIC  (0x213C6172)
 
 /**
  * Mach-o object type definition
