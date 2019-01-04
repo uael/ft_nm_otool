@@ -102,6 +102,7 @@ static const char *errno_str[] = {
 	[ETIME] = "STREAM ioctl timeout",
 	[ENOTRECOVERABLE] = "State not recoverable",
 	[EBADMACHO] = "Malformed Macho file",
+	[EBADARCH] = "Bad CPU type in executable",
 	[EOWNERDEAD] = "Previous owner died",
 };
 

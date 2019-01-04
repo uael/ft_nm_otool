@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <ar.h>
+#include <mach-o/arch.h>
 #include <mach-o/loader.h>
 #include <mach-o/nlist.h>
 #include <mach-o/stab.h>
@@ -68,6 +69,22 @@ uint64_t obj_swap64(obj_t obj, uint64_t u);
  */
 bool obj_ism64(obj_t obj);
 
+/**
+ * Retrieve whatever object is fat
+ * @param obj  [in] Mach-o object
+ * @return          Whatever object is fat
+ */
+bool obj_isfat(struct obj const *o);
+
+#define OBJ_NX_HOST (NXArchInfo const *)(-1)
+
+/**
+ * Retrieve targeted object architecture info
+ * @param obj  [in] Object
+ * @return          Architecture info or NULL if all
+ */
+NXArchInfo const *obj_arch(struct obj const *obj);
+
 
 /* --- Collection --- */
 
@@ -83,7 +100,7 @@ const void *obj_peek(obj_t obj, size_t off, size_t len);
 /**
  * Object collector call-back type definition
  */
-typedef int obj_collector_t(obj_t, size_t off, void *user);
+typedef int obj_collector_t(obj_t, NXArchInfo const *, size_t off, void *user);
 
 /**
  * Object collector definition
@@ -97,11 +114,12 @@ struct obj_collector
 /**
  * Collect though a Mach-o object
  * @param filename   [in] Path of the mach-o object in the system
+ * @param arch_info  [in] Arch info to collect, NULL for all
  * @param collector  [in] User collection call-back's
  * @param user       [in] Optional user parameter
  * @return                0 on success, -1 otherwise with `errno` set
  */
-int obj_collect(const char *filename,
+int obj_collect(const char *filename, NXArchInfo const *arch_info,
 				const struct obj_collector *collector, void *user);
 
 

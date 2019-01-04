@@ -34,7 +34,9 @@ enum
 
 struct nm_context
 {
+	char const *bin;
 	int flags;
+	bool arch_printed;
 	char sections[UINT8_MAX];
 	uint8_t nsects;
 };
@@ -43,7 +45,7 @@ struct sym
 {
 	struct sym *next;
 
-	const char *string;
+	char const *string;
 	uint64_t off;
 	uint32_t str_max_size;
 	char type;
@@ -129,7 +131,7 @@ static inline void sym_insert(struct nm_context *const ctx,
 
 			/* Check if we get the right position
 			 * inverse comparison if the `r` option is active */
-			if ((ctx->flags & NM_OPT_r) ? cmp >= 0 : cmp <= 0) {
+			if ((ctx->flags & NM_OPT_r) ? cmp > 0 : cmp < 0) {
 				syms[i].next = *it;
 				break;
 			}
@@ -150,34 +152,40 @@ static inline void sym_insert(struct nm_context *const ctx,
 	*it = syms + i;
 }
 
-static inline int symtab_32_collect(obj_t const obj, size_t const off,
-									void *const user)
+static inline int symtab_32_collect(obj_t const o, NXArchInfo const *arch_info,
+                                    size_t const off, void *const user)
 {
 	struct nm_context *const ctx = user;
 
 	/* Peek the symtab structure */
 	const struct symtab_command *const symtab =
-		obj_peek(obj, off, sizeof *symtab);
+		obj_peek(o, off, sizeof *symtab);
 
-	if (symtab == NULL)
+	if (symtab == NULL){
+		errno = EBADMACHO;
 		return -1;
+	}
 
-	uint32_t const stroff = obj_swap32(obj, symtab->stroff);
-	uint32_t const strsize = obj_swap32(obj, symtab->strsize);
+	uint32_t const stroff = obj_swap32(o, symtab->stroff);
+	uint32_t const strsize = obj_swap32(o, symtab->strsize);
 
 	/* Check for str table validity */
-	if (obj_peek(obj, stroff, strsize) == NULL)
+	if (obj_peek(o, stroff, strsize) == NULL){
+		errno = EBADMACHO;
 		return -1;
+	}
 
-	uint32_t const symoff = obj_swap32(obj, symtab->symoff);
-	uint32_t const nsyms = obj_swap32(obj, symtab->nsyms);
+	uint32_t const symoff = obj_swap32(o, symtab->symoff);
+	uint32_t const nsyms = obj_swap32(o, symtab->nsyms);
 
 	/* Peek the nlist structure array */
 	const struct nlist *const nlist =
-		obj_peek(obj, symoff, sizeof(*nlist) * nsyms);
+		obj_peek(o, symoff, sizeof(*nlist) * nsyms);
 
-	if (nlist == NULL)
+	if (nlist == NULL){
+		errno = EBADMACHO;
 		return -1;
+	}
 
 	struct sym *head = NULL, syms[nsyms];
 
@@ -185,52 +193,70 @@ static inline int symtab_32_collect(obj_t const obj, size_t const off,
 	 * Options will affect insertion */
 	for (uint32_t i = 0; i < nsyms; ++i) {
 
-		const uint32_t offset = stroff + obj_swap32(obj, nlist[i].n_un.n_strx);
+		const uint32_t offset = stroff + obj_swap32(o, nlist[i].n_un.n_strx);
 
 		syms[i] = (struct sym){
 			.str_max_size = stroff + strsize - offset,
-			.string = obj_peek(obj, offset, stroff + strsize - offset),
-			.type = sym_type(obj_swap64(obj, nlist[i].n_value), nlist[i].n_type,
+			.string = obj_peek(o, offset, stroff + strsize - offset),
+			.type = sym_type(obj_swap32(o, nlist[i].n_value), nlist[i].n_type,
 							 nlist[i].n_sect,
-							 obj_swap16(obj, (uint16_t)nlist[i].n_desc), ctx),
-			.off = obj_swap32(obj, nlist[i].n_value)
+							 obj_swap16(o, (uint16_t)nlist[i].n_desc), ctx),
+			.off = obj_swap32(o, nlist[i].n_value)
 		};
 
 		/* Got a valid symbol, insert it */
 		sym_insert(ctx, syms, i, &head);
+	}
+
+	if (obj_isfat(o) && obj_arch(o) == NULL) {
+		if (ctx->arch_printed)
+			ft_printf("\n");
+
+		ft_printf("%s (for architecture %s):\n",
+		          ctx->bin, arch_info ? arch_info->name : "none");
+
+		ctx->arch_printed = true;
+		ctx->nsects = 0;
+		ft_memset(ctx->sections, 0, sizeof ctx->sections);
 	}
 
 	return syms_dump(g_stdout, head, 8);
 }
 
-static inline int symtab_64_collect(obj_t const obj, size_t const off,
-									void *const user)
+static inline int symtab_64_collect(obj_t const o, NXArchInfo const *arch_info,
+                                    size_t const off, void *const user)
 {
 	struct nm_context *const ctx = user;
 
 	/* Peek the symtab structure */
 	const struct symtab_command *const symtab =
-		obj_peek(obj, off, sizeof *symtab);
+		obj_peek(o, off, sizeof *symtab);
 
-	if (symtab == NULL)
+	if (symtab == NULL){
+		errno = EBADMACHO;
 		return -1;
+	}
 
-	uint32_t const stroff = obj_swap32(obj, symtab->stroff);
-	uint32_t const strsize = obj_swap32(obj, symtab->strsize);
+	uint32_t const stroff = obj_swap32(o, symtab->stroff);
+	uint32_t const strsize = obj_swap32(o, symtab->strsize);
 
 	/* Check for str table validity */
-	if (obj_peek(obj, stroff, strsize) == NULL)
+	if (obj_peek(o, stroff, strsize) == NULL){
+		errno = EBADMACHO;
 		return -1;
+	}
 
-	uint32_t const symoff = obj_swap32(obj, symtab->symoff);
-	uint32_t const nsyms = obj_swap32(obj, symtab->nsyms);
+	uint32_t const symoff = obj_swap32(o, symtab->symoff);
+	uint32_t const nsyms = obj_swap32(o, symtab->nsyms);
 
 	/* Peek the nlist structure array */
 	const struct nlist_64 *const nlist =
-		obj_peek(obj, symoff, sizeof(*nlist) * nsyms);
+		obj_peek(o, symoff, sizeof(*nlist) * nsyms);
 
-	if (nlist == NULL)
+	if (nlist == NULL){
+		errno = EBADMACHO;
 		return -1;
+	}
 
 	struct sym *head = NULL, syms[nsyms];
 
@@ -238,52 +264,71 @@ static inline int symtab_64_collect(obj_t const obj, size_t const off,
 	 * Options will affect insertion */
 	for (uint32_t i = 0; i < nsyms; ++i) {
 
-		const uint32_t offset = stroff + obj_swap32(obj, nlist[i].n_un.n_strx);
+		const uint32_t offset = stroff + obj_swap32(o, nlist[i].n_un.n_strx);
 
 		syms[i] = (struct sym){
 			.str_max_size = stroff + strsize - offset,
-			.string = obj_peek(obj, offset, stroff + strsize - offset),
-			.type = sym_type(obj_swap64(obj, nlist[i].n_value), nlist[i].n_type,
-							 nlist[i].n_sect, obj_swap16(obj, nlist[i].n_desc),
+			.string = obj_peek(o, offset, stroff + strsize - offset),
+			.type = sym_type(obj_swap64(o, nlist[i].n_value), nlist[i].n_type,
+							 nlist[i].n_sect, obj_swap16(o, nlist[i].n_desc),
 							 ctx),
-			.off = obj_swap64(obj, nlist[i].n_value)
+			.off = obj_swap64(o, nlist[i].n_value)
 		};
 
 		/* Got a valid symbol, insert it */
 		sym_insert(ctx, syms, i, &head);
 	}
 
+	if (obj_isfat(o) && obj_arch(o) == NULL) {
+		if (ctx->arch_printed)
+			ft_printf("\n");
+
+		ft_printf("%s (for architecture %s):\n",
+		          ctx->bin, arch_info ? arch_info->name : "none");
+
+		ctx->arch_printed = true;
+		ctx->nsects = 0;
+		ft_memset(ctx->sections, 0, sizeof ctx->sections);
+	}
+
 	return syms_dump(g_stdout, head, 16);
 }
 
-static int symtab_collect(obj_t const obj, const size_t off, void *const user)
+static int symtab_collect(obj_t const o, NXArchInfo const *arch_info,
+                          size_t const off, void *const user)
 {
 	struct nm_context *const ctx = user;
 
 	/* Symtab before text section ? */
-	if (ctx->nsects == 0)
+	if (ctx->nsects == 0) {
+		errno = EBADMACHO;
 		return -1;
+	}
 
 	static obj_collector_t *const collectors[] = {
 		[false] = symtab_32_collect,
 		[true]  = symtab_64_collect
 	};
 
-	return collectors[obj_ism64(obj)](obj, off, user);
+	return collectors[obj_ism64(o)](o, arch_info, off, user);
 }
 
-static int segment_collect(obj_t const obj, size_t off, void *const user)
+static int segment_collect(obj_t const o, NXArchInfo const *arch_info,
+                           size_t off, void *const user)
 {
+	(void)arch_info;
 	struct nm_context *const ctx = user;
 
 	/* Peek the segment structure */
-	const struct segment_command *const seg = obj_peek(obj, off, sizeof *seg);
+	const struct segment_command *const seg = obj_peek(o, off, sizeof *seg);
 
-	if (seg == NULL)
+	if (seg == NULL) {
+		errno = EBADMACHO;
 		return -1;
+	}
 
 	/* Check for architecture miss-match */
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(obj)) {
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o)) {
 		errno = EBADMACHO;
 		return -1;
 	}
@@ -292,7 +337,7 @@ static int segment_collect(obj_t const obj, size_t off, void *const user)
 
 	/* Loop though section and collect each one
 	 * section is next to it's header */
-	for (uint32_t nsects = obj_swap32(obj, seg->nsects); nsects--;) {
+	for (uint32_t nsects = obj_swap32(o, seg->nsects); nsects--;) {
 
 		/* No more space to store sections.. */
 		if (ctx->nsects == COUNT_OF(ctx->sections)) {
@@ -301,10 +346,12 @@ static int segment_collect(obj_t const obj, size_t off, void *const user)
 		}
 
 		/* Peek the section structure */
-		const struct section *const sect = obj_peek(obj, off, sizeof *sect);
+		const struct section *const sect = obj_peek(o, off, sizeof *sect);
 
-		if (sect == NULL)
+		if (sect == NULL) {
+			errno = EBADMACHO;
 			return -1;
+		}
 
 		/* Update section table */
 		if (ft_strcmp("__text", sect->sectname) == 0)
@@ -322,18 +369,20 @@ static int segment_collect(obj_t const obj, size_t off, void *const user)
 	return 0;
 }
 
-static int segment_64_collect(obj_t const obj, size_t off, void *const user)
+static int segment_64_collect(obj_t const o, NXArchInfo const *arch_info,
+                              size_t off, void *const user)
 {
+	(void)arch_info;
 	struct nm_context *const ctx = user;
 
 	/* Peek the segment structure */
-	const struct segment_command_64 *const seg = obj_peek(obj, off, sizeof *seg);
+	const struct segment_command_64 *const seg = obj_peek(o, off, sizeof *seg);
 
 	if (seg == NULL)
 		return -1;
 
 	/* Check for architecture miss-match */
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(obj)) {
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o)) {
 		errno = EBADMACHO;
 		return -1;
 	}
@@ -342,14 +391,14 @@ static int segment_64_collect(obj_t const obj, size_t off, void *const user)
 
 	/* Loop though section and collect each one
 	 * section is next to it's header */
-	for (uint32_t nsects = obj_swap32(obj, seg->nsects); nsects--;) {
+	for (uint32_t nsects = obj_swap32(o, seg->nsects); nsects--;) {
 
 		/* No more space to store sections.. */
 		if (ctx->nsects == COUNT_OF(ctx->sections))
 			return -1;
 
 		/* Peek the section structure */
-		const struct section_64 *const sect = obj_peek(obj, off, sizeof *sect);
+		const struct section_64 *const sect = obj_peek(o, off, sizeof *sect);
 
 		if (sect == NULL)
 			return -1;
@@ -382,9 +431,10 @@ static const struct obj_collector nm_collector = {
 
 int main(int ac, char *av[])
 {
-	const char *const exe = *av;
+	char const *const exe = *av;
 	int ret = EXIT_SUCCESS, flags;
 	struct nm_context ctx = { };
+	char const *arch = NULL;
 	t_opt const opts[] = {
 		{ FT_OPT_BOOLEAN, 'a', "debug-syms", &flags,
 		  "Display debugger-only symbols", NM_OPT_a },
@@ -400,6 +450,8 @@ int main(int ac, char *av[])
 		  "Display only undefined symbols", NM_OPT_u },
 		{ FT_OPT_BOOLEAN, 'U', "ext-undefined-only", &flags,
 		  "Display only external undefined symbols", NM_OPT_U },
+		{ FT_OPT_STRING, 'A', "arch", &arch,
+			"architecture(s) from a Mach-O file to dump", 0 },
 		{ FT_OPT_END, 0, 0, 0, 0, 0 }
 	};
 
@@ -418,6 +470,19 @@ int main(int ac, char *av[])
 		return EXIT_FAILURE;
 	}
 
+	NXArchInfo const *arch_info = NULL;
+
+	if (arch == NULL) arch_info = OBJ_NX_HOST;
+	else if (ft_strcmp("all", arch) != 0 &&
+	         (arch_info = NXGetArchInfoFromName(arch)) == NULL) {
+
+		/* Dump error, then abort.. */
+		ft_fprintf(g_stderr, "%s: Unknown architecture named '%s'\n",
+		           exe, arch);
+
+		return EXIT_FAILURE;
+	}
+
 	/* Default file if none */
 	if (i == ac) av[ac++] = "a.out";
 
@@ -428,15 +493,17 @@ int main(int ac, char *av[])
 		if (printed)               ft_fprintf(g_stdout, "\n");
 		if (printed || i + 1 < ac) ft_fprintf(g_stdout, "%s:\n", av[i]);
 
-		/* Retrieve flags from parsed options */
+		/* Retrieve flags from parsed options
+		 * and bin from cmd line argument */
 		ctx.flags = flags;
+		ctx.bin   = av[i];
 
 		/* Collect Mach-o object using nm collectors */
-		if (obj_collect(av[i], &nm_collector, &ctx)) {
+		if (obj_collect(ctx.bin, arch_info, &nm_collector, &ctx)) {
 
 			/* Dump error, then continue.. */
 			ft_fprintf(g_stderr, "%s: %s: %s\n",
-					   exe, av[i], ft_strerror(errno));
+					   exe, ctx.bin, ft_strerror(errno));
 			ret = EXIT_FAILURE;
 		}
 
@@ -444,6 +511,9 @@ int main(int ac, char *av[])
 		ft_memset(&ctx, 0, sizeof ctx);
 		printed = true;
 	}
+
+	/* Even if it's not allocated, this proc is safe to call */
+	if (arch_info && arch_info != OBJ_NX_HOST) NXFreeArchInfo(arch_info);
 
 	return ret;
 }

@@ -27,8 +27,10 @@
  */
 struct obj
 {
-	const uint8_t *buf;
+	NXArchInfo const *arch_info;
+	uint8_t const *buf;
 	size_t len;
+	bool fat;
 	bool m64;
 	bool le;
 };
@@ -39,7 +41,7 @@ struct obj
 /**
  * Swap 16 bits unsigned integer according to object endianness
  */
-inline uint16_t obj_swap16(const struct obj *o, uint16_t u)
+inline uint16_t obj_swap16(struct obj const *o, uint16_t u)
 {
 	return o->le ? OSSwapConstInt16(u) : u;
 }
@@ -47,7 +49,7 @@ inline uint16_t obj_swap16(const struct obj *o, uint16_t u)
 /**
  * Swap 32 bits unsigned integer according to object endianness
  */
-inline uint32_t obj_swap32(const struct obj *o, uint32_t u)
+inline uint32_t obj_swap32(struct obj const *o, uint32_t u)
 {
 	return o->le ? OSSwapConstInt32(u) : u;
 }
@@ -55,7 +57,7 @@ inline uint32_t obj_swap32(const struct obj *o, uint32_t u)
 /**
  * Swap 64 bits unsigned integer according to object endianness
  */
-inline uint64_t obj_swap64(const struct obj *o, uint64_t u)
+inline uint64_t obj_swap64(struct obj const *o, uint64_t u)
 {
 	return o->le ? OSSwapConstInt64(u) : u;
 }
@@ -66,9 +68,25 @@ inline uint64_t obj_swap64(const struct obj *o, uint64_t u)
 /**
  * Peek sized data at offset on Mach-o object
  */
-inline bool obj_ism64(const struct obj *o)
+inline bool obj_ism64(struct obj const *o)
 {
 	return o->m64;
+}
+
+/**
+ * Retrieve whatever object is fat
+ */
+inline bool obj_isfat(struct obj const *o)
+{
+	return o->fat;
+}
+
+/**
+ * Retrieve targeted object architecture info
+ */
+inline NXArchInfo const *obj_arch(struct obj const *o)
+{
+	return o->arch_info;
 }
 
 
@@ -77,7 +95,7 @@ inline bool obj_ism64(const struct obj *o)
 /**
  * Retrieve if this Mach-o object is 64 bits based
  */
-inline const void *obj_peek(const struct obj *const o, size_t const off,
+inline const void *obj_peek(struct obj const *const o, size_t const off,
 							size_t const len)
 {
 	/* `len` argument is only used for bound checking */
@@ -92,8 +110,9 @@ inline const void *obj_peek(const struct obj *const o, size_t const off,
 /**
  * Different archive load
  */
-static int load(const uint8_t *buf, size_t off, size_t len,
-				const struct obj_collector *collector, void *user);
+static int load(NXArchInfo const *arch_info, bool fat,
+                const uint8_t *buf, size_t len,
+                const struct obj_collector *collector, void *user);
 
 /**
  * Start at `mach_header` and collect each `load_command`
@@ -103,13 +122,31 @@ static int load(const uint8_t *buf, size_t off, size_t len,
  * @param user       [in] Optional user parameter
  * @return           0 on success, -1 otherwise with `errno` set
  */
-static inline int lc_load(const struct obj *o, size_t off,
+static inline int lc_load(struct obj const *o, size_t off,
 						  const struct obj_collector *collectors, void *user)
 {
 	const struct mach_header *const header = obj_peek(o, off, sizeof *header);
 
-	if (header == NULL)
+	if (header == NULL) {
+		errno = EBADMACHO;
 		return -1;
+	}
+
+	NXArchInfo const *const arch_info =
+		NXGetArchInfoFromCpuType(
+			(cpu_type_t)obj_swap32(o, (uint32_t) header->cputype),
+			(cpu_subtype_t)obj_swap32(o, (uint32_t) header->cpusubtype));
+
+	if (arch_info == NULL) {
+		errno = EBADMACHO;
+		return -1;
+	}
+
+	/* Skip load if arch didn't match targeted one */
+	if (o->arch_info != NULL && o->arch_info != OBJ_NX_HOST &&
+		(o->arch_info->cputype != arch_info->cputype ||
+	    o->arch_info->cpusubtype != arch_info->cpusubtype))
+		return 0;
 
 	static const size_t header_size[] = {
 		[false] = sizeof(struct mach_header),
@@ -126,16 +163,18 @@ static inline int lc_load(const struct obj *o, size_t off,
 		/* Peek the load command structure */
 		const struct load_command *const lc = obj_peek(o, off, sizeof *lc);
 
-		if (lc == NULL)
+		if (lc == NULL) {
+			errno = EBADMACHO;
 			return -1;
+		}
 
 		uint32_t const cmd = obj_swap32(o, lc->cmd);
 
 		/* Perform user collection if enabled */
 		if (cmd < collectors->ncollector && collectors->collectors[cmd])
-			err = collectors->collectors[cmd](o, off, user);
+			err = collectors->collectors[cmd](o, arch_info, off, user);
 
-		off += lc->cmdsize;
+		off += obj_swap32(o, lc->cmdsize);
 	}
 
 	return err;
@@ -149,34 +188,75 @@ static inline int lc_load(const struct obj *o, size_t off,
  * @param user       [in] Optional user parameter
  * @return           0 on success, -1 otherwise with `errno` set
  */
-static inline int fat_load(const struct obj *const obj, size_t off,
+static inline int fat_load(struct obj const *const obj, size_t const off,
 						   const struct obj_collector *const collector,
 						   void *user)
 {
 	const struct fat_header *const header = obj_peek(obj, off, sizeof *header);
 
-	if (header == NULL)
+	if (header == NULL) {
+		errno = EBADMACHO;
 		return -1;
+	}
 
-	off += sizeof *header;
+	NXArchInfo const *arch_info =
+		obj->arch_info != OBJ_NX_HOST
+			? obj->arch_info : NXGetArchInfoFromName("x86_64");
+
+	uint32_t const nfat_arch = obj_swap32(obj, header->nfat_arch);
+	const struct fat_arch *fat_archs =
+		obj_peek(obj, off + sizeof *header, sizeof(*fat_archs) * nfat_arch);
+
+	if (fat_archs == NULL) {
+		errno = EBADMACHO;
+		return -1;
+	}
+
+	if (arch_info) {
+		bool find = false;
+
+		for (uint32_t i = 0; i < nfat_arch; ++i) {
+
+			struct fat_arch const *const arch = fat_archs + i;
+			NXArchInfo const *const info =
+				NXGetArchInfoFromCpuType(
+					(cpu_type_t)obj_swap32(obj, (uint32_t)arch->cputype),
+					(cpu_subtype_t)obj_swap32(obj, (uint32_t)arch->cpusubtype));
+
+			if (info == NULL) {
+				errno = EBADMACHO;
+				return -1;
+			}
+
+			/* Skip load if arch didn't match targeted one */
+			if (arch_info->cputype == info->cputype &&
+				arch_info->cpusubtype == info->cpusubtype)
+				find = true;
+		}
+
+		if (find == false && obj->arch_info && obj->arch_info != OBJ_NX_HOST) {
+			errno = EBADARCH;
+			return -1;
+		}
+
+		if (find == false) arch_info = NULL;
+	}
 
 	/* Loop though FAT arch and load each one
 	 * Mach-o header are accessible at `arch->offset` */
-	for (uint32_t nfat_arch = obj_swap32(obj, header->nfat_arch);
-		 nfat_arch--;) {
+	for (uint32_t i = 0; i < nfat_arch; ++i) {
 
 		/* Peek the FAT arch structure,
 		 * then peek it's mach-o header offset */
-		const struct fat_arch *const arch = obj_peek(obj, off, sizeof *arch);
-
-		if (arch == NULL)
-			return -1;
+		struct fat_arch const *const arch = fat_archs + i;
 
 		uint32_t const arch_off = obj_swap32(obj, arch->offset);
 		const uint32_t *const magic = obj_peek(obj, arch_off, sizeof *magic);
 
-		if (magic == NULL)
+		if (magic == NULL) {
+			errno = EBADMACHO;
 			return -1;
+		}
 
 		/* There is no FAT recursion, so check for it */
 		if (*magic == FAT_MAGIC || *magic == FAT_CIGAM) {
@@ -185,10 +265,9 @@ static inline int fat_load(const struct obj *const obj, size_t off,
 		}
 
 		/* Continue load at new offset */
-		if (load(obj->buf, arch_off, obj->len, collector, user))
+		if (load(arch_info, true, obj->buf + arch_off, obj->len,
+		         collector, user))
 			return -1;
-
-		off += sizeof *arch;
 	}
 
 	return 0;
@@ -202,7 +281,7 @@ static inline int fat_load(const struct obj *const obj, size_t off,
  * @param user       [in] Optional user parameter
  * @return           0 on success, -1 otherwise with `errno` set
  */
-static inline int ar_load(const struct obj *const obj, size_t off,
+static inline int ar_load(struct obj const *const obj, size_t off,
 						  const struct obj_collector *const collector,
 						  void *user)
 {
@@ -215,22 +294,24 @@ static inline int ar_load(const struct obj *const obj, size_t off,
 
 /**
  * Different archive load
+ * @param arch_info  [in] Arch to load
+ * @param fat        [in] Fat object
  * @param buf        [in] Mach-o object file buffer
- * @param off        [in] Load offset
  * @param len        [in] Mach-o object file size
  * @param collector  [in] User collection call-back's
  * @param user       [in] Optional user parameter
  * @return                0 on success, -1 otherwise with `errno` set
  */
-static int load(const uint8_t *buf, size_t off, size_t len,
-				const struct obj_collector *collector, void *user)
+static int load(NXArchInfo const *arch_info, bool fat,
+                const uint8_t *buf, size_t len,
+                const struct obj_collector *collector, void *user)
 {
 	static const struct
 	{
 		uint32_t magic;
 		bool m64, le;
 
-		int (*load)(const struct obj *, size_t,
+		int (*load)(struct obj const *, size_t,
 					const struct obj_collector *, void *);
 	} loaders[] = {
 		{ MH_MAGIC,    false, false, lc_load  },
@@ -248,7 +329,7 @@ static int load(const uint8_t *buf, size_t off, size_t len,
 	/* Using the Mach-o magic, dispatch to the appropriate loader,
 	 * then retrieve LE mode and M64 */
 	for (i = 0; i < COUNT_OF(loaders) &&
-				loaders[i].magic != *(uint32_t *)(buf + off); ++i);
+				loaders[i].magic != *(uint32_t *)buf; ++i);
 
 	/* Unable to find proper loader for this magic */
 	if (i == COUNT_OF(loaders)) {
@@ -257,19 +338,20 @@ static int load(const uint8_t *buf, size_t off, size_t len,
 	}
 
 	const struct obj o = (struct obj){
+		.arch_info = arch_info, .fat = fat,
 		.buf = buf, .len = len,
 		.m64 = loaders[i].m64, .le = loaders[i].le
 	};
 
 	/* Dispatch collection call-back's to correct loader,
 	 * loader maybe the `err_load` one if zero match */
-	return loaders[i].load(&o, off, collector, user);
+	return loaders[i].load(&o, 0, collector, user);
 }
 
 /**
  * Collect though a Mach-o object
  */
-int obj_collect(const char *const filename,
+int obj_collect(const char *const filename, NXArchInfo const *arch_info,
 				const struct obj_collector *const collector, void *const user)
 {
 	int const fd = open(filename, O_RDONLY);
@@ -294,7 +376,7 @@ int obj_collect(const char *const filename,
 
 	/* Start loading,
 	 * then unmap file and break */
-	int const err = load(buf, 0, len, collector, user);
+	int const err = load(arch_info, false, buf, len, collector, user);
 	munmap(buf, len);
 
 	return err;
