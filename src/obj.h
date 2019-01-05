@@ -32,6 +32,18 @@
  */
 typedef const struct obj *obj_t;
 
+enum
+{
+	OBJ_E_INVAL_MAGIC  = 1, /**< Invalid magic         */
+	OBJ_E_INVAL_FATHDR,     /**< Invalid fat header    */
+	OBJ_E_INVAL_FATARCH,    /**< Invalid fat archs     */
+	OBJ_E_INVAL_ARCHINFO,   /**< Invalid arch info     */
+	OBJ_E_INVAL_MHHDR,      /**< Invalid mach-o header */
+	OBJ_E_INVAL_LC,         /**< Invalid load command  */
+	OBJ_E_NOTFOUND_ARCH,    /**< Invalid arch match    */
+	OBJ_E_FAT_RECURSION,    /**< Fat recursion         */
+	OBJ_E_MAX
+};
 
 /* --- Endianness --- */
 
@@ -63,27 +75,31 @@ uint64_t obj_swap64(obj_t obj, uint64_t u);
 /* --- Architecture --- */
 
 /**
- * Retrieve if this Mach-o object is 64 bits based
+ * Possible value to pass to `obj_collect` `arch_info` argument,
+ * means collection target the host architecture
+ */
+#define OBJ_NX_HOST (NXArchInfo const *)(-1)
+
+/**
+ * Retrieve whatever Mach-o object is 64 bits based
  * @param obj  [in] Mach-o object
  * @return          true if object is a 64 bits object, false otherwise
  */
 bool obj_ism64(obj_t obj);
 
 /**
- * Retrieve whatever object is fat
+ * Retrieve whatever Mach-o object is fat
  * @param obj  [in] Mach-o object
  * @return          Whatever object is fat
  */
-bool obj_isfat(struct obj const *o);
-
-#define OBJ_NX_HOST (NXArchInfo const *)(-1)
+bool obj_isfat(struct obj const *obj);
 
 /**
- * Retrieve targeted object architecture info
- * @param obj  [in] Object
+ * Retrieve targeted Mach-o object architecture info
+ * @param obj  [in] Mach-o object
  * @return          Architecture info or NULL if all
  */
-NXArchInfo const *obj_arch(struct obj const *obj);
+NXArchInfo const *obj_target(struct obj const *obj);
 
 
 /* --- Collection --- */
@@ -93,7 +109,7 @@ NXArchInfo const *obj_arch(struct obj const *obj);
  * @param obj  [in] Mach-o object
  * @param off  [in] Offset where to peek data
  * @param len  [in] Size of data to peek
- * @return          Data on success, NULL otherwise
+ * @return          Data on success, NULL otherwise with `errno` set
  */
 const void *obj_peek(obj_t obj, size_t off, size_t len);
 
@@ -114,7 +130,7 @@ struct obj_collector
 /**
  * Collect though a Mach-o object
  * @param filename   [in] Path of the mach-o object in the system
- * @param arch_info  [in] Arch info to collect, NULL for all
+ * @param arch_info  [in] Arch to collect, OBJ_NX_HOST for host and NULL for all
  * @param collector  [in] User collection call-back's
  * @param user       [in] Optional user parameter
  * @return                0 on success, -1 otherwise with `errno` set

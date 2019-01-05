@@ -32,6 +32,11 @@ enum
 	NM_OPT_U = (1 << 6),
 };
 
+enum
+{
+	NM_E = 1
+};
+
 struct nm_context
 {
 	char const *bin;
@@ -166,7 +171,7 @@ static inline int symtab_32_collect(obj_t const o, NXArchInfo const *arch_info,
 		return -1;
 	}
 
-	uint32_t const stroff = obj_swap32(o, symtab->stroff);
+	uint32_t const stroff  = obj_swap32(o, symtab->stroff);
 	uint32_t const strsize = obj_swap32(o, symtab->strsize);
 
 	/* Check for str table validity */
@@ -176,7 +181,7 @@ static inline int symtab_32_collect(obj_t const o, NXArchInfo const *arch_info,
 	}
 
 	uint32_t const symoff = obj_swap32(o, symtab->symoff);
-	uint32_t const nsyms = obj_swap32(o, symtab->nsyms);
+	uint32_t const nsyms  = obj_swap32(o, symtab->nsyms);
 
 	/* Peek the nlist structure array */
 	const struct nlist *const nlist =
@@ -208,7 +213,7 @@ static inline int symtab_32_collect(obj_t const o, NXArchInfo const *arch_info,
 		sym_insert(ctx, syms, i, &head);
 	}
 
-	if (obj_isfat(o) && obj_arch(o) == NULL) {
+	if (obj_isfat(o) && obj_target(o) == NULL) {
 		if (ctx->arch_printed)
 			ft_printf("\n");
 
@@ -237,17 +242,18 @@ static inline int symtab_64_collect(obj_t const o, NXArchInfo const *arch_info,
 		return -1;
 	}
 
-	uint32_t const stroff = obj_swap32(o, symtab->stroff);
+	uint32_t const stroff  = obj_swap32(o, symtab->stroff);
 	uint32_t const strsize = obj_swap32(o, symtab->strsize);
 
 	/* Check for str table validity */
-	if (obj_peek(o, stroff, strsize) == NULL){
+	if (obj_peek(o, stroff, strsize) == NULL) {
 		errno = EBADMACHO;
 		return -1;
 	}
 
 	uint32_t const symoff = obj_swap32(o, symtab->symoff);
-	uint32_t const nsyms = obj_swap32(o, symtab->nsyms);
+	uint32_t const nsyms  = obj_swap32(o, symtab->nsyms);
+
 
 	/* Peek the nlist structure array */
 	const struct nlist_64 *const nlist =
@@ -279,7 +285,7 @@ static inline int symtab_64_collect(obj_t const o, NXArchInfo const *arch_info,
 		sym_insert(ctx, syms, i, &head);
 	}
 
-	if (obj_isfat(o) && obj_arch(o) == NULL) {
+	if (obj_isfat(o) && obj_target(o) == NULL) {
 		if (ctx->arch_printed)
 			ft_printf("\n");
 
