@@ -13,6 +13,8 @@
 #include "obj.h"
 
 #include <ft/cdefs.h>
+#include <ft/stdlib.h>
+#include <ft/string.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -278,10 +280,47 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 						  const struct obj_collector *const collector,
 						  void *user)
 {
-	(void)obj;
-	(void)off;
-	(void)collector;
-	(void)user;
+	/* AR begin with a special magic: `!<arch>\n`, check for it */
+	char const *const mag = obj_peek(obj, off, SARMAG);
+	if (mag == NULL || ft_strncmp(ARMAG, mag, SARMAG) != 0)
+		return OBJ_E_INVAL_MAGIC;
+
+	off += SARMAG;
+
+	struct ar_hdr const* const ar_hdr = obj_peek(obj, off, sizeof *ar_hdr);
+	if (ar_hdr == NULL) return OBJ_E_INVAL_ARHDR;
+
+	off += sizeof *ar_hdr + 20; /* 20 additional bytes for long name */
+
+	uint32_t const *symtab_size = obj_peek(obj, off, sizeof *symtab_size);
+	if (symtab_size == NULL) return OBJ_E_INVAL_ARHDR;
+
+	off += sizeof *symtab_size; /* 4 additional bytes for reserved slot */
+
+	struct ranlib const *const symtabs = obj_peek(obj, off, *symtab_size);
+
+	for (uint32_t i = 0; i < *symtab_size / sizeof(struct ranlib); ++i) {
+
+		struct ar_hdr const* const o_hdr =
+			obj_peek(obj, symtabs[i].ran_off, sizeof *o_hdr);
+		if (o_hdr == NULL) return OBJ_E_INVAL_AROBJHDR;
+
+		char name_len[sizeof(o_hdr->ar_name) - 3 + 1];
+		char obj_len[sizeof o_hdr->ar_size + 1];
+
+		ft_strncpy(name_len, o_hdr->ar_name + 3, sizeof(o_hdr->ar_name) - 3);
+		int const len = ft_atoi(name_len);
+
+		ft_strncpy(obj_len, o_hdr->ar_size, sizeof o_hdr->ar_size);
+		int const size = ft_atoi(obj_len);
+
+		off = symtabs[i].ran_off + sizeof *o_hdr + len;
+
+		int const err = load(obj->target, obj->fat, obj->buf + off,
+		                     (size_t)size, collector, user);
+		return err;
+	}
+
 	return 0;
 }
 
@@ -310,6 +349,7 @@ static int load(NXArchInfo const *target, bool fat,
 		{ MH_CIGAM,     false, true,  lc_load  },
 		{ MH_MAGIC_64,  true,  false, lc_load  },
 		{ MH_CIGAM_64,  true,  true,  lc_load  },
+		{ 0xC0DE0000,   true,  true,  lc_load  },
 		{ FAT_MAGIC,    false, false, fat_load },
 		{ FAT_CIGAM,    false, true,  fat_load },
 		{ FAT_MAGIC_64, true,  false, fat_load },
@@ -355,10 +395,8 @@ int obj_collect(const char *const filename, NXArchInfo const *arch_info,
 
 	size_t const size = (size_t)st.st_size;
 
-	if (size < sizeof(uint32_t))
-		return (errno = EBADMACHO), -1;
-	if ((st.st_mode & S_IFDIR))
-		return (errno = EISDIR), -1;
+	if (size < sizeof(uint32_t)) return (errno = EBADMACHO), -1;
+	if ((st.st_mode & S_IFDIR))  return (errno = EISDIR), -1;
 
 	/* Then map the whole file into a buffer,
 	 * map file read only */

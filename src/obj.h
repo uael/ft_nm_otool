@@ -21,6 +21,7 @@
 #include <mach-o/arch.h>
 #include <mach-o/loader.h>
 #include <mach-o/nlist.h>
+#include <mach-o/ranlib.h>
 #include <mach-o/stab.h>
 #include <mach-o/swap.h>
 
@@ -34,14 +35,16 @@ typedef const struct obj *obj_t;
 
 enum
 {
-	OBJ_E_INVAL_MAGIC  = 1, /**< Invalid magic         */
-	OBJ_E_INVAL_FATHDR,     /**< Invalid fat header    */
-	OBJ_E_INVAL_FATARCH,    /**< Invalid fat archs     */
-	OBJ_E_INVAL_ARCHINFO,   /**< Invalid arch info     */
-	OBJ_E_INVAL_MHHDR,      /**< Invalid mach-o header */
-	OBJ_E_INVAL_LC,         /**< Invalid load command  */
-	OBJ_E_NOTFOUND_ARCH,    /**< Invalid arch match    */
-	OBJ_E_FAT_RECURSION,    /**< Fat recursion         */
+	OBJ_E_INVAL_MAGIC  = 1, /**< Invalid magic                 */
+	OBJ_E_INVAL_FATHDR,     /**< Invalid fat header            */
+	OBJ_E_INVAL_FATARCH,    /**< Invalid fat archs             */
+	OBJ_E_INVAL_ARCHINFO,   /**< Invalid arch info             */
+	OBJ_E_INVAL_MHHDR,      /**< Invalid mach-o header         */
+	OBJ_E_INVAL_ARHDR,      /**< Invalid archive header        */
+	OBJ_E_INVAL_AROBJHDR,   /**< Invalid archive object header */
+	OBJ_E_INVAL_LC,         /**< Invalid load command          */
+	OBJ_E_NOTFOUND_ARCH,    /**< Invalid arch match            */
+	OBJ_E_FAT_RECURSION,    /**< Fat recursion                 */
 	OBJ_E_MAX
 };
 
