@@ -417,7 +417,7 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 	off += SARMAG;
 
 	struct ar_info info;
-	int err = get_ar_hdr(obj, &off, &info);
+	int err = get_ar_hdr(obj, &off, &info, true);
 	if (err) return err;
 
 	size_t const nranlibs = info.ranlibs_size / sizeof(struct ranlib);
@@ -426,7 +426,7 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 		struct ar_info ran_info;
 		size_t ran_off = ((struct ranlib *)info.ranlibs)[i].ran_off;
 
-		err = get_ar_hdr(obj, &ran_off, &ran_info);
+		err = get_ar_hdr(obj, &ran_off, &ran_info, false);
 		if (err) return err;
 
 		err = load(obj->target, OFILE_AR, ran_info.obj,
