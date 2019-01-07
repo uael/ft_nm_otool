@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   obj.h                                              :+:      :+:    :+:   */
+/*   ofile.h                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: alucas- <alucas-@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -10,8 +10,8 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#ifndef OBJ_H
-# define OBJ_H
+#ifndef OFILE_H
+# define OFILE_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -31,21 +31,34 @@
 /**
  * Mach-o object type definition
  */
-typedef const struct obj *obj_t;
+typedef struct obj const *obj_t;
 
 enum
 {
-	OBJ_E_INVAL_MAGIC  = 1, /**< Invalid magic                 */
-	OBJ_E_INVAL_FATHDR,     /**< Invalid fat header            */
-	OBJ_E_INVAL_FATARCH,    /**< Invalid fat archs             */
-	OBJ_E_INVAL_ARCHINFO,   /**< Invalid arch info             */
-	OBJ_E_INVAL_MHHDR,      /**< Invalid mach-o header         */
-	OBJ_E_INVAL_ARHDR,      /**< Invalid archive header        */
-	OBJ_E_INVAL_AROBJHDR,   /**< Invalid archive object header */
-	OBJ_E_INVAL_LC,         /**< Invalid load command          */
-	OBJ_E_NOTFOUND_ARCH,    /**< Invalid arch match            */
-	OBJ_E_FAT_RECURSION,    /**< Fat recursion                 */
-	OBJ_E_MAX
+	OFILE_E_INVAL_MAGIC  = 1, /**< Invalid magic                 */
+	OFILE_E_INVAL_FATHDR,     /**< Invalid fat header            */
+	OFILE_E_INVAL_FATARCH,    /**< Invalid fat archs             */
+	OFILE_E_INVAL_ARCHINFO,   /**< Invalid arch info             */
+	OFILE_E_INVAL_MHHDR,      /**< Invalid mach-o header         */
+	OFILE_E_INVAL_ARHDR,      /**< Invalid archive header        */
+	OFILE_E_INVAL_AROBJHDR,   /**< Invalid archive object header */
+	OFILE_E_INVAL_LC,         /**< Invalid load command          */
+	OFILE_E_NOTFOUND_ARCH,    /**< Invalid arch match            */
+	OFILE_E_MAX
+};
+
+/**
+ *
+ * @param err
+ * @return
+ */
+char const *ofile_etoa(int err);
+
+enum ofile
+{
+	OFILE_MH = 0,
+	OFILE_FAT,
+	OFILE_AR,
 };
 
 /* --- Endianness --- */
@@ -78,10 +91,11 @@ uint64_t obj_swap64(obj_t obj, uint64_t u);
 /* --- Architecture --- */
 
 /**
- * Possible value to pass to `obj_collect` `arch_info` argument,
+ * Possible value to pass to `ofile_collect` `arch_info` argument,
  * means collection target the host architecture
  */
-#define OBJ_NX_HOST (NXArchInfo const *)(-1)
+#define OFILE_NX_HOST (NXArchInfo const *)(  -1)
+#define OFILE_NX_ALL  (NXArchInfo const *)(NULL)
 
 /**
  * Retrieve whatever Mach-o object is 64 bits based
@@ -91,18 +105,18 @@ uint64_t obj_swap64(obj_t obj, uint64_t u);
 bool obj_ism64(obj_t obj);
 
 /**
- * Retrieve whatever Mach-o object is fat
+ * Retrieve Mach-o object ofile type
  * @param obj  [in] Mach-o object
- * @return          Whatever object is fat
+ * @return          object ofile type
  */
-bool obj_isfat(struct obj const *obj);
+enum ofile obj_ofile(obj_t obj);
 
 /**
  * Retrieve targeted Mach-o object architecture info
  * @param obj  [in] Mach-o object
  * @return          Architecture info or NULL if all
  */
-NXArchInfo const *obj_target(struct obj const *obj);
+NXArchInfo const *obj_target(obj_t obj);
 
 
 /* --- Collection --- */
@@ -117,29 +131,29 @@ NXArchInfo const *obj_target(struct obj const *obj);
 const void *obj_peek(obj_t obj, size_t off, size_t len);
 
 /**
- * Object collector call-back type definition
+ * Object file collector call-back type definition
  */
-typedef int obj_collector_t(obj_t, NXArchInfo const *, size_t off, void *user);
+typedef int ofile_collector_t(obj_t, NXArchInfo const *, size_t, void *);
 
 /**
- * Object collector definition
+ * Object file collector definition
  */
-struct obj_collector
+struct ofile_collector
 {
 	size_t ncollector; /**< Actual max size of `collectors` field */
-	obj_collector_t *const collectors[]; /**< Collectors array */
+	ofile_collector_t *const collectors[]; /**< Collectors array */
 };
 
 /**
  * Collect though a Mach-o object
  * @param filename   [in] Path of the mach-o object in the system
- * @param arch_info  [in] Arch to collect, OBJ_NX_HOST for host and NULL for all
+ * @param arch_info  [in] Arch to collect, OFILE_NX_HOST for host and NULL for all
  * @param collector  [in] User collection call-back's
  * @param user       [in] Optional user parameter
  * @return                0 on success, -1 otherwise with `errno` set
  */
-int obj_collect(const char *filename, NXArchInfo const *arch_info,
-				const struct obj_collector *collector, void *user);
+int ofile_collect(const char *filename, NXArchInfo const *arch_info,
+                  const struct ofile_collector *collector, void *user);
 
 
-#endif /* !OBJ_H */
+#endif /* !OFILE_H */

@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   otool/main.c                                       :+:      :+:    :+:   */
+/*   otool.c                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: alucas- <alucas-@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "obj.h"
+#include "ofile.h"
 
 #include <ft/ctype.h>
 #include <ft/stdio.h>
@@ -144,7 +144,7 @@ static int segment_64_collect(obj_t const o, NXArchInfo const *arch_info,
 }
 
 /* otool collectors */
-static const struct obj_collector nm_collector = {
+static const struct ofile_collector nm_collector = {
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SEGMENT]    = segment_collect,
@@ -167,7 +167,7 @@ int main(int ac, char *av[])
 		ft_printf("%s:\n", av[i]);
 
 		/* Collect Mach-o object using otool collectors */
-		if (obj_collect(av[i], OBJ_NX_HOST, &nm_collector, NULL)) {
+		if (ofile_collect(av[i], OFILE_NX_HOST, &nm_collector, NULL)) {
 
 			/* Dump error, then continue.. */
 			ft_fprintf(g_stderr, "%s: %s: %s\n",

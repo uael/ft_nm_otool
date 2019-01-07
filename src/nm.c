@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   nm/main.c                                          :+:      :+:    :+:   */
+/*   nm.c                                               :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: alucas- <alucas-@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "obj.h"
+#include "ofile.h"
 
 #include <ft/ctype.h>
 #include <ft/opts.h>
@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <stdlib.h>
+#include <mach-o/nlist.h>
 
 
 enum
@@ -34,15 +35,44 @@ enum
 
 enum
 {
-	NM_E = 1
+	NM_E_INVAL_SYMTAB = OFILE_E_MAX,
+	NM_E_INVAL_STRTAB,
+	NM_E_INVAL_NLIST,
+	NM_E_INVAL_SYMTAB_ORDER,
+	NM_E_INVAL_SEGMENT,
+	NM_E_INVAL_SECTION,
+	NM_E_INVAL_SECTION_COUNT,
+	NM_E_INVAL_ARCH,
 };
+
+static inline char const *nm_etoa(int const err)
+{
+	switch (err) {
+		case NM_E_INVAL_SYMTAB:
+			return "Invalid symtab size";
+		case NM_E_INVAL_NLIST:
+			return "Invalid nlist table size";
+		case NM_E_INVAL_SYMTAB_ORDER:
+			return "Invalid symtab order";
+		case NM_E_INVAL_SEGMENT:
+			return "Invalid segment size";
+		case NM_E_INVAL_SECTION:
+			return "Invalid section size";
+		case NM_E_INVAL_SECTION_COUNT:
+			return "Invalid section count size";
+		case NM_E_INVAL_ARCH:
+			return "Architecture miss-match";
+
+		default: return ofile_etoa(err);
+	}
+}
 
 struct nm_context
 {
 	char const *bin;
 	int flags;
 	bool arch_printed;
-	char sections[UINT8_MAX];
+	char sects[UINT8_MAX];
 	uint8_t nsects;
 };
 
@@ -55,23 +85,6 @@ struct sym
 	uint32_t str_max_size;
 	char type;
 };
-
-static inline int syms_dump(t_stream *const s, struct sym *head, unsigned padd)
-{
-	for (; head; head = head->next) {
-
-		if (head->off || !(head->type == 'u' || head->type == 'U'))
-			ft_fprintf(s, "%0*lx %c %.*s\n",
-					   padd, head->off, head->type, head->str_max_size,
-					   head->string);
-
-		else
-			ft_fprintf(s, "  %*c %.*s\n",
-					   padd, head->type, head->str_max_size, head->string);
-	}
-
-	return 0;
-}
 
 static inline char sym_type(uint64_t const n_value, uint8_t n_type,
 							uint8_t n_sect, uint16_t n_desc,
@@ -86,8 +99,8 @@ static inline char sym_type(uint64_t const n_value, uint8_t n_type,
 		type = (char)(n_value ? 'c' : 'u');
 	else if (type_field == N_ABS)
 		type = 'a';
-	else if (type_field == N_SECT && ctx->sections[n_sect - 1])
-		type = ctx->sections[n_sect - 1];
+	else if (type_field == N_SECT && ctx->sects[n_sect - 1])
+		type = ctx->sects[n_sect - 1];
 	else if (type_field == N_PBUD)
 		type = 'u';
 	else if (type_field == N_INDR)
@@ -100,8 +113,8 @@ static inline char sym_type(uint64_t const n_value, uint8_t n_type,
 
 }
 
-static inline void sym_insert(struct nm_context *const ctx,
-							  struct sym syms[], uint32_t i, struct sym **head)
+static inline void syms_insert(struct nm_context *const ctx,
+							   struct sym syms[], uint32_t i, struct sym **head)
 {
 	struct sym **it;
 
@@ -157,276 +170,195 @@ static inline void sym_insert(struct nm_context *const ctx,
 	*it = syms + i;
 }
 
-static inline int symtab_32_collect(obj_t const o, NXArchInfo const *arch_info,
-                                    size_t const off, void *const user)
-{
-	struct nm_context *const ctx = user;
-
-	/* Peek the symtab structure */
-	const struct symtab_command *const symtab =
-		obj_peek(o, off, sizeof *symtab);
-
-	if (symtab == NULL){
-		errno = EBADMACHO;
-		return -1;
-	}
-
-	uint32_t const stroff  = obj_swap32(o, symtab->stroff);
-	uint32_t const strsize = obj_swap32(o, symtab->strsize);
-
-	/* Check for str table validity */
-	if (obj_peek(o, stroff, strsize) == NULL){
-		errno = EBADMACHO;
-		return -1;
-	}
-
-	uint32_t const symoff = obj_swap32(o, symtab->symoff);
-	uint32_t const nsyms  = obj_swap32(o, symtab->nsyms);
-
-	/* Peek the nlist structure array */
-	const struct nlist *const nlist =
-		obj_peek(o, symoff, sizeof(*nlist) * nsyms);
-
-	if (nlist == NULL){
-		errno = EBADMACHO;
-		return -1;
-	}
-
-	struct sym *head = NULL, syms[nsyms];
-
-	/* For each nlist insert the symbol into `head` singly linked list
-	 * Options will affect insertion */
-	for (uint32_t i = 0; i < nsyms; ++i) {
-
-		const uint32_t offset = stroff + obj_swap32(o, nlist[i].n_un.n_strx);
-
-		syms[i] = (struct sym){
-			.str_max_size = stroff + strsize - offset,
-			.string = obj_peek(o, offset, stroff + strsize - offset),
-			.type = sym_type(obj_swap32(o, nlist[i].n_value), nlist[i].n_type,
-							 nlist[i].n_sect,
-							 obj_swap16(o, (uint16_t)nlist[i].n_desc), ctx),
-			.off = obj_swap32(o, nlist[i].n_value)
-		};
-
-		/* Got a valid symbol, insert it */
-		sym_insert(ctx, syms, i, &head);
-	}
-
-	if (obj_isfat(o) && obj_target(o) == NULL) {
-		if (ctx->arch_printed)
-			ft_printf("\n");
-
-		ft_printf("%s (for architecture %s):\n",
-		          ctx->bin, arch_info ? arch_info->name : "none");
-
-		ctx->arch_printed = true;
-		ctx->nsects = 0;
-		ft_memset(ctx->sections, 0, sizeof ctx->sections);
-	}
-
-	return syms_dump(g_stdout, head, 8);
-}
-
-static inline int symtab_64_collect(obj_t const o, NXArchInfo const *arch_info,
-                                    size_t const off, void *const user)
-{
-	struct nm_context *const ctx = user;
-
-	/* Peek the symtab structure */
-	const struct symtab_command *const symtab =
-		obj_peek(o, off, sizeof *symtab);
-
-	if (symtab == NULL){
-		errno = EBADMACHO;
-		return -1;
-	}
-
-	uint32_t const stroff  = obj_swap32(o, symtab->stroff);
-	uint32_t const strsize = obj_swap32(o, symtab->strsize);
-
-	/* Check for str table validity */
-	if (obj_peek(o, stroff, strsize) == NULL) {
-		errno = EBADMACHO;
-		return -1;
-	}
-
-	uint32_t const symoff = obj_swap32(o, symtab->symoff);
-	uint32_t const nsyms  = obj_swap32(o, symtab->nsyms);
-
-
-	/* Peek the nlist structure array */
-	const struct nlist_64 *const nlist =
-		obj_peek(o, symoff, sizeof(*nlist) * nsyms);
-
-	if (nlist == NULL){
-		errno = EBADMACHO;
-		return -1;
-	}
-
-	struct sym *head = NULL, syms[nsyms];
-
-	/* For each nlist insert the symbol into `head` singly linked list
-	 * Options will affect insertion */
-	for (uint32_t i = 0; i < nsyms; ++i) {
-
-		const uint32_t offset = stroff + obj_swap32(o, nlist[i].n_un.n_strx);
-
-		syms[i] = (struct sym){
-			.str_max_size = stroff + strsize - offset,
-			.string = obj_peek(o, offset, stroff + strsize - offset),
-			.type = sym_type(obj_swap64(o, nlist[i].n_value), nlist[i].n_type,
-							 nlist[i].n_sect, obj_swap16(o, nlist[i].n_desc),
-							 ctx),
-			.off = obj_swap64(o, nlist[i].n_value)
-		};
-
-		/* Got a valid symbol, insert it */
-		sym_insert(ctx, syms, i, &head);
-	}
-
-	if (obj_isfat(o) && obj_target(o) == NULL) {
-		if (ctx->arch_printed)
-			ft_printf("\n");
-
-		ft_printf("%s (for architecture %s):\n",
-		          ctx->bin, arch_info ? arch_info->name : "none");
-
-		ctx->arch_printed = true;
-		ctx->nsects = 0;
-		ft_memset(ctx->sections, 0, sizeof ctx->sections);
-	}
-
-	return syms_dump(g_stdout, head, 16);
-}
-
 static int symtab_collect(obj_t const o, NXArchInfo const *arch_info,
                           size_t const off, void *const user)
 {
 	struct nm_context *const ctx = user;
 
 	/* Symtab before text section ? */
-	if (ctx->nsects == 0) {
-		errno = EBADMACHO;
-		return -1;
-	}
+	if (ctx->nsects == 0) return (errno = EBADMACHO), NM_E_INVAL_SYMTAB_ORDER;
 
-	static obj_collector_t *const collectors[] = {
-		[false] = symtab_32_collect,
-		[true]  = symtab_64_collect
+	/* Peek the symtab structure */
+	struct symtab_command const *const symt = obj_peek(o, off, sizeof *symt);
+	if (symt == NULL) return NM_E_INVAL_SYMTAB;
+
+	uint32_t const stroff  = obj_swap32(o, symt->stroff);
+	uint32_t const strsize = obj_swap32(o, symt->strsize);
+
+	/* Check for string table validity */
+	if (obj_peek(o, stroff, strsize) == NULL) return NM_E_INVAL_STRTAB;
+
+	uint32_t const soff  = obj_swap32(o, symt->symoff);
+	uint32_t const nsyms = obj_swap32(o, symt->nsyms);
+
+	static size_t const nl_sizes[] = {
+		[false] = sizeof(struct nlist),
+		[true]  = sizeof(struct nlist_64)
 	};
 
-	return collectors[obj_ism64(o)](o, arch_info, off, user);
+	/* Peek the nlist structure array */
+	void const *const nls = obj_peek(o, soff, nl_sizes[obj_ism64(o)] * nsyms);
+	if (nls == NULL) return NM_E_INVAL_NLIST;
+
+	struct sym *head = NULL, syms[nsyms];
+
+	/* For each nlist insert the symbol into `head` singly linked list
+	 * Options will affect insertion */
+	for (uint32_t i = 0; i < nsyms; ++i) {
+		uint64_t value;
+		uint32_t strx;
+		uint16_t desc;
+		uint8_t type, sect;
+
+		if (obj_ism64(o)) {
+			struct nlist_64 const *const nl = (struct nlist_64 *)nls + i;
+
+			value = obj_swap64(o, nl->n_value);
+			strx  = obj_swap32(o, nl->n_un.n_strx);
+			desc  = obj_swap16(o, nl->n_desc);
+			type  = nl->n_type;
+			sect  = nl->n_sect;
+		}
+		else {
+			struct nlist const *const nl = (struct nlist *)nls + i;
+
+			value = obj_swap32(o, nl->n_value);
+			strx  = obj_swap32(o, nl->n_un.n_strx);
+			desc  = obj_swap16(o, (uint16_t)nl->n_desc);
+			type  = nl->n_type;
+			sect  = nl->n_sect;
+		}
+
+		uint32_t const offset = stroff + strx;
+
+		syms[i] = (struct sym){
+			.str_max_size = stroff + strsize - offset,
+			.string = obj_peek(o, offset, stroff + strsize - offset),
+			.type = sym_type(value, type, sect, obj_swap16(o, desc), ctx),
+			.off = value
+		};
+
+		/* Got a valid symbol, insert it */
+		syms_insert(ctx, syms, i, &head);
+	}
+
+	/* Reset section saves for future uses */
+	ctx->nsects = 0;
+	ft_memset(ctx->sects, 0, sizeof ctx->sects);
+
+	/* In case of FAT file and  multiple arch, add some info btw two outputs */
+	if (obj_ofile(o) == OFILE_FAT && obj_target(o) == OFILE_NX_ALL) {
+		if (ctx->arch_printed) ft_printf("\n");
+		ft_printf("%s (for architecture %s):\n",
+		          ctx->bin, arch_info ? arch_info->name : "none");
+		ctx->arch_printed = true;
+	}
+
+	/* Everything is done here (collect and sort), just dump.. */
+	for (int const padding = obj_ism64(o) ? 16 : 8; head; head = head->next) {
+
+		/* Special output for valued and undefined symbol */
+		if (head->off || !(head->type == 'u' || head->type == 'U'))
+			ft_printf("%0*lx %c %.*s\n",
+			          padding, head->off, head->type, head->str_max_size,
+			          head->string);
+
+		/* Standard output */
+		else ft_printf("  %*c %.*s\n",
+			           padding, head->type, head->str_max_size, head->string);
+	}
+
+	return 0;
 }
 
-static int segment_collect(obj_t const o, NXArchInfo const *arch_info,
+static int segment_collect(obj_t const o, NXArchInfo const *const arch_info,
                            size_t off, void *const user)
 {
 	(void)arch_info;
 	struct nm_context *const ctx = user;
 
 	/* Peek the segment structure */
-	const struct segment_command *const seg = obj_peek(o, off, sizeof *seg);
-
-	if (seg == NULL) {
-		errno = EBADMACHO;
-		return -1;
-	}
+	struct segment_command const *const seg = obj_peek(o, off, sizeof *seg);
+	if (seg == NULL) return NM_E_INVAL_SEGMENT;
 
 	/* Check for architecture miss-match */
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o)) {
-		errno = EBADMACHO;
-		return -1;
-	}
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
+		return (errno = EBADARCH), NM_E_INVAL_ARCH;
 
 	off += sizeof *seg;
 
 	/* Loop though section and collect each one
 	 * section is next to it's header */
-	for (uint32_t nsects = obj_swap32(o, seg->nsects); nsects--;) {
+	for (uint32_t nsects = obj_swap32(o, seg->nsects); nsects--;
+	     off += sizeof(struct section)) {
 
 		/* No more space to store sections.. */
-		if (ctx->nsects == COUNT_OF(ctx->sections)) {
-			errno = EBADMACHO;
-			return -1;
-		}
+		if (ctx->nsects == COUNT_OF(ctx->sects))
+			return (errno = EBADMACHO), NM_E_INVAL_SECTION_COUNT;
 
 		/* Peek the section structure */
-		const struct section *const sect = obj_peek(o, off, sizeof *sect);
-
-		if (sect == NULL) {
-			errno = EBADMACHO;
-			return -1;
-		}
+		struct section const *const sect = obj_peek(o, off, sizeof *sect);
+		if (sect == NULL) return NM_E_INVAL_SECTION;
 
 		/* Update section table */
 		if (ft_strcmp("__text", sect->sectname) == 0)
-			ctx->sections[ctx->nsects++] = 't';
+			ctx->sects[ctx->nsects++] = 't';
 		else if (ft_strcmp("__data", sect->sectname) == 0)
-			ctx->sections[ctx->nsects++] = 'd';
+			ctx->sects[ctx->nsects++] = 'd';
 		else if (ft_strcmp("__bss", sect->sectname) == 0)
-			ctx->sections[ctx->nsects++] = 'b';
+			ctx->sects[ctx->nsects++] = 'b';
 		else
-			ctx->sections[ctx->nsects++] = 's';
-
-		off += sizeof *sect;
+			ctx->sects[ctx->nsects++] = 's';
 	}
 
 	return 0;
 }
 
-static int segment_64_collect(obj_t const o, NXArchInfo const *arch_info,
+static int segment_64_collect(obj_t const o, NXArchInfo const *const arch_info,
                               size_t off, void *const user)
 {
 	(void)arch_info;
 	struct nm_context *const ctx = user;
 
 	/* Peek the segment structure */
-	const struct segment_command_64 *const seg = obj_peek(o, off, sizeof *seg);
-
-	if (seg == NULL)
-		return -1;
+	struct segment_command_64 const *const seg = obj_peek(o, off, sizeof *seg);
+	if (seg == NULL) return NM_E_INVAL_SEGMENT;
 
 	/* Check for architecture miss-match */
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o)) {
-		errno = EBADMACHO;
-		return -1;
-	}
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
+		return (errno = EBADARCH), NM_E_INVAL_ARCH;
 
 	off += sizeof *seg;
 
 	/* Loop though section and collect each one
 	 * section is next to it's header */
-	for (uint32_t nsects = obj_swap32(o, seg->nsects); nsects--;) {
+	for (uint32_t nsects = obj_swap32(o, seg->nsects); nsects--;
+	     off += sizeof(struct section_64)) {
 
 		/* No more space to store sections.. */
-		if (ctx->nsects == COUNT_OF(ctx->sections))
-			return -1;
+		if (ctx->nsects == COUNT_OF(ctx->sects))
+			return (errno = EBADMACHO), NM_E_INVAL_SECTION_COUNT;
 
 		/* Peek the section structure */
-		const struct section_64 *const sect = obj_peek(o, off, sizeof *sect);
-
-		if (sect == NULL)
-			return -1;
+		struct section_64 const *const sect = obj_peek(o, off, sizeof *sect);
+		if (sect == NULL) return NM_E_INVAL_SECTION;
 
 		/* Update section table */
 		if (ft_strcmp("__text", sect->sectname) == 0)
-			ctx->sections[ctx->nsects++] = 't';
+			ctx->sects[ctx->nsects++] = 't';
 		else if (ft_strcmp("__data", sect->sectname) == 0)
-			ctx->sections[ctx->nsects++] = 'd';
+			ctx->sects[ctx->nsects++] = 'd';
 		else if (ft_strcmp("__bss", sect->sectname) == 0)
-			ctx->sections[ctx->nsects++] = 'b';
+			ctx->sects[ctx->nsects++] = 'b';
 		else
-			ctx->sections[ctx->nsects++] = 's';
-
-		off += sizeof *sect;
+			ctx->sects[ctx->nsects++] = 's';
 	}
 
 	return 0;
 }
 
 /* nm collectors */
-static const struct obj_collector nm_collector = {
+static const struct ofile_collector nm_collector = {
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SYMTAB]     = symtab_collect,
@@ -478,7 +410,7 @@ int main(int ac, char *av[])
 
 	NXArchInfo const *arch_info = NULL;
 
-	if (arch == NULL) arch_info = OBJ_NX_HOST;
+	if (arch == NULL) arch_info = OFILE_NX_HOST;
 	else if (ft_strcmp("all", arch) != 0 &&
 	         (arch_info = NXGetArchInfoFromName(arch)) == NULL) {
 
@@ -496,8 +428,8 @@ int main(int ac, char *av[])
 	for (; i < ac; ++i) {
 
 		/* Add some indication btw two output */
-		if (printed)               ft_fprintf(g_stdout, "\n");
-		if (printed || i + 1 < ac) ft_fprintf(g_stdout, "%s:\n", av[i]);
+		if (printed)               ft_printf("\n");
+		if (printed || i + 1 < ac) ft_printf("%s:\n", av[i]);
 
 		/* Retrieve flags from parsed options
 		 * and bin from cmd line argument */
@@ -505,11 +437,11 @@ int main(int ac, char *av[])
 		ctx.bin   = av[i];
 
 		/* Collect Mach-o object using nm collectors */
-		if (obj_collect(ctx.bin, arch_info, &nm_collector, &ctx)) {
+		int const err = ofile_collect(ctx.bin, arch_info, &nm_collector, &ctx);
+		if (err) {
 
 			/* Dump error, then continue.. */
-			ft_fprintf(g_stderr, "%s: %s: %s\n",
-					   exe, ctx.bin, ft_strerror(errno));
+			ft_fprintf(g_stderr, "%s: %s: %s\n", exe, ctx.bin, nm_etoa(err));
 			ret = EXIT_FAILURE;
 		}
 
@@ -519,7 +451,7 @@ int main(int ac, char *av[])
 	}
 
 	/* Even if it's not allocated, this proc is safe to call */
-	if (arch_info && arch_info != OBJ_NX_HOST) NXFreeArchInfo(arch_info);
+	if (arch_info && arch_info != OFILE_NX_HOST) NXFreeArchInfo(arch_info);
 
 	return ret;
 }

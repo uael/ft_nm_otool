@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
-project(eiffel VERSION 0.0.1 LANGUAGES C ASM)
+project(nm-otool VERSION 0.0.1 LANGUAGES C ASM)
 
 macro (add_target name)
   set(default_opt DEBUG=1)
