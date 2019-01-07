@@ -305,7 +305,7 @@ struct ar_info
 };
 
 static int get_ar_hdr(struct obj const *const obj, size_t *const off,
-                      struct ar_info *info)
+                      struct ar_info *info, bool root)
 {
 	struct ar_hdr hdr_cpy;
 
@@ -369,26 +369,33 @@ static int get_ar_hdr(struct obj const *const obj, size_t *const off,
 		info->size -= info->name_len;
 	}
 
-	if (obj_ism64(obj)) {
-		uint64_t const *const size = obj_peek(obj, obj_off, sizeof *size);
-		if (size == NULL) return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
+	if (root) {
+		if (obj_ism64(obj)) {
+			uint64_t const *const size = obj_peek(obj, obj_off, sizeof *size);
+			if (size == NULL) return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
 
-		info->ranlibs_size = (size_t)obj_swap64(obj, *size);
-		obj_off += sizeof *size;
+			info->ranlibs_size = (size_t)*size;
+			obj_off += sizeof *size;
 
-	} else {
-		uint32_t const *const size = obj_peek(obj, obj_off, sizeof *size);
-		if (size == NULL) return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
+		} else {
+			uint32_t const *const size = obj_peek(obj, obj_off, sizeof *size);
+			if (size == NULL) return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
 
-		info->ranlibs_size = (size_t)obj_swap32(obj, *size);
-		obj_off += sizeof *size;
+			info->ranlibs_size = (size_t)*size;
+			obj_off += sizeof *size;
+		}
+
+		info->ranlibs = obj_peek(obj, obj_off, info->ranlibs_size);
+		if (info->ranlibs == NULL) return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
+		obj_off += info->ranlibs_size;
+
+		return obj_off >= *off ? ((errno = EBADMACHO), OFILE_E_INVAL_ARHDR) : 0;
 	}
 
-	info->ranlibs = obj_peek(obj, obj_off, info->ranlibs_size);
-	if (info->ranlibs == NULL) return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
-	obj_off += info->ranlibs_size;
+	info->ranlibs_size = 0;
+	info->ranlibs = NULL;
 
-	return obj_off >= *off ? ((errno = EBADMACHO), OFILE_E_INVAL_ARHDR) : 0;
+	return 0;
 }
 
 /**
