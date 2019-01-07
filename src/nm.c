@@ -357,8 +357,16 @@ static int segment_64_collect(obj_t const o, NXArchInfo const *const arch_info,
 	return 0;
 }
 
+static void on_ar_object(char const *name, size_t len, void *user)
+{
+	struct nm_context *const ctx = user;
+
+	ft_printf("%s(%.*s):\n", ctx->bin, (unsigned)len, name);
+}
+
 /* nm collectors */
 static const struct ofile_collector nm_collector = {
+	.ar_object = on_ar_object,
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SYMTAB]     = symtab_collect,
