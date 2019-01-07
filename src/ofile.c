@@ -315,7 +315,7 @@ static int get_ar_hdr(struct obj const *const obj, size_t *const off,
 	*off += sizeof *info->hdr;
 
 	/* Check for header consistency (must be "`\n") */
-	if (ft_strcmp(ARFMAG, info->hdr->ar_fmag) != 0)
+	if (ft_strncmp(ARFMAG, info->hdr->ar_fmag, sizeof(ARFMAG) - 1) != 0)
 		return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
 
 	/* Keep a local mutable copy of the AR header to safely insert null char */
