@@ -74,6 +74,7 @@ struct nm_context
 	bool arch_printed;
 	char sects[UINT8_MAX];
 	uint8_t nsects;
+	bool alone;
 };
 
 struct sym
@@ -357,16 +358,18 @@ static int segment_64_collect(obj_t const o, NXArchInfo const *const arch_info,
 	return 0;
 }
 
-static void on_ar_object(char const *name, size_t len, void *user)
+static void on_object(char const *obj, size_t obj_len, void *user)
 {
 	struct nm_context *const ctx = user;
 
-	ft_printf("%s(%.*s):\n", ctx->bin, (unsigned)len, name);
+	if (obj) ft_printf("\n%s(%.*s):\n", ctx->bin, (unsigned)obj, obj_len);
+	else if (!ctx->alone)
+		ft_printf("\n%s:\n", ctx->bin);
 }
 
 /* nm collectors */
 static const struct ofile_collector nm_collector = {
-	.ar_object = on_ar_object,
+	.on_object = on_object,
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SYMTAB]     = symtab_collect,
@@ -402,7 +405,6 @@ int main(int ac, char *av[])
 	};
 
 	int i = 1;
-	bool printed = false;
 
 	/* Parse options */
 	if (ft_optparse(opts, &i, ac, av)) {
@@ -436,8 +438,7 @@ int main(int ac, char *av[])
 	for (; i < ac; ++i) {
 
 		/* Add some indication btw two output */
-		if (printed)               ft_printf("\n");
-		if (printed || i + 1 < ac) ft_printf("%s:\n", av[i]);
+		ctx.alone = i + 1 >= ac;
 
 		/* Retrieve flags from parsed options
 		 * and bin from cmd line argument */
@@ -455,7 +456,6 @@ int main(int ac, char *av[])
 
 		/* Reset nm context memory for future use */
 		ft_memset(&ctx, 0, sizeof ctx);
-		printed = true;
 	}
 
 	/* Even if it's not allocated, this proc is safe to call */

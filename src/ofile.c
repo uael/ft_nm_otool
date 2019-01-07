@@ -425,8 +425,8 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 			err = get_ar_hdr(obj, &ran_off, &ran_info, false);
 			if (err) return err;
 
-			if (collector->ar_object)
-				collector->ar_object(ran_info.name, ran_info.name_len,
+			if (collector->on_object)
+				collector->on_object(ran_info.name, ran_info.name_len,
 				                     user);
 
 			err = load(obj->target, OFILE_AR, ran_info.obj,
@@ -446,8 +446,8 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 			err = get_ar_hdr(obj, &ran_off, &ran_info, false);
 			if (err) return err;
 
-			if (collector->ar_object)
-				collector->ar_object(ran_info.name, ran_info.name_len,
+			if (collector->on_object)
+				collector->on_object(ran_info.name, ran_info.name_len,
 				                     user);
 
 			err = load(obj->target, OFILE_AR, ran_info.obj,

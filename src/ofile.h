@@ -140,7 +140,7 @@ typedef int ofile_collector_t(obj_t, NXArchInfo const *, size_t, void *);
  */
 struct ofile_collector
 {
-	void (*ar_object)(char const *name, size_t len, void *);
+	void (*on_object)(char const *name, size_t len, void *);
 
 	size_t ncollector; /**< Actual max size of `collectors` field */
 	ofile_collector_t *const collectors[]; /**< Collectors array */
