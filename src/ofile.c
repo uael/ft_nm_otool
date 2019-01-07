@@ -408,55 +408,51 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 		return (errno = EBADMACHO), OFILE_E_INVAL_MAGIC;
 	off += SARMAG;
 
-	int err;
-	for (err = 0; err == 0 && obj_peek(obj, off, sizeof(struct ar_hdr));) {
+	struct ar_info info;
 
-		struct ar_info info;
+	int err = get_ar_hdr(obj, &off, &info, true);
+	if (err) return err;
 
-		err = get_ar_hdr(obj, &off, &info, true);
-		if (err) return err;
+	if (ft_strncmp(info.name, SYMDEF, info.name_len) == 0 ||
+	    ft_strncmp(info.name, SYMDEF_SORTED, info.name_len) == 0) {
 
-		if (ft_strncmp(info.name, SYMDEF, info.name_len) == 0 ||
-		    ft_strncmp(info.name, SYMDEF_SORTED, info.name_len) == 0) {
+		size_t const nranlibs = info.ranlibs_size / sizeof(struct ranlib);
 
-			size_t const nranlibs = info.ranlibs_size / sizeof(struct ranlib);
+		for (size_t i = 0; i < nranlibs; ++i) {
+			struct ar_info ran_info;
+			size_t ran_off = ((struct ranlib *)info.ranlibs)[i].ran_off;
 
-			for (size_t i = 0; i < nranlibs; ++i) {
-				struct ar_info ran_info;
-				size_t ran_off = ((struct ranlib *)info.ranlibs)[i].ran_off;
+			err = get_ar_hdr(obj, &ran_off, &ran_info, false);
+			if (err) return err;
 
-				err = get_ar_hdr(obj, &ran_off, &ran_info, false);
-				if (err) return err;
+			if (collector->ar_object)
+				collector->ar_object(ran_info.name, ran_info.name_len,
+				                     user);
 
-				if (collector->ar_object)
-					collector->ar_object(ran_info.name, ran_info.name_len,
-					                     user);
-
-				err = load(obj->target, OFILE_AR, ran_info.obj,
-				           ran_info.size, collector, user);
-				if (err) return err;
-			}
+			err = load(obj->target, OFILE_AR, ran_info.obj,
+			           ran_info.size, collector, user);
+			if (err) return err;
 		}
-		else if (ft_strncmp(info.name, SYMDEF_64, info.name_len) == 0 ||
-		         ft_strncmp(info.name, SYMDEF_64_SORTED, info.name_len) == 0) {
+	}
+	else if (ft_strncmp(info.name, SYMDEF_64, info.name_len) == 0 ||
+	         ft_strncmp(info.name, SYMDEF_64_SORTED, info.name_len) == 0) {
 
-			size_t const nranlibs = info.ranlibs_size / sizeof(struct ranlib_64);
+		size_t const nranlibs = info.ranlibs_size / sizeof(struct ranlib_64);
 
-			for (size_t i = 0; i < nranlibs; ++i) {
-				struct ar_info ran_info;
-				size_t ran_off = ((struct ranlib_64 *)info.ranlibs)[i].ran_off;
+		for (size_t i = 0; i < nranlibs; ++i) {
+			struct ar_info ran_info;
+			size_t ran_off = ((struct ranlib_64 *)info.ranlibs)[i].ran_off;
 
-				err = get_ar_hdr(obj, &ran_off, &ran_info, false);
-				if (err) return err;
+			err = get_ar_hdr(obj, &ran_off, &ran_info, false);
+			if (err) return err;
 
-				if (collector->ar_object)
-					collector->ar_object(ran_info.name, ran_info.name_len,
-					                     user);
+			if (collector->ar_object)
+				collector->ar_object(ran_info.name, ran_info.name_len,
+				                     user);
 
-				err = load(obj->target, OFILE_AR, ran_info.obj,
-				           ran_info.size, collector, user);
-				if (err) return err;
-			}
+			err = load(obj->target, OFILE_AR, ran_info.obj,
+			           ran_info.size, collector, user);
+			if (err) return err;
 		}
 	}
 
