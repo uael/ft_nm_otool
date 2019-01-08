@@ -71,10 +71,9 @@ struct nm_context
 {
 	char const *bin;
 	int flags;
-	bool arch_printed;
 	char sects[UINT8_MAX];
 	uint8_t nsects;
-	bool alone;
+	int nfiles;
 };
 
 struct sym
@@ -171,8 +170,7 @@ static inline void syms_insert(struct nm_context *const ctx,
 	*it = syms + i;
 }
 
-static int symtab_collect(obj_t const o, NXArchInfo const *arch_info,
-                          size_t const off, void *const user)
+static int symtab_collect(obj_t const o, size_t const off, void *const user)
 {
 	struct nm_context *const ctx = user;
 
@@ -243,18 +241,6 @@ static int symtab_collect(obj_t const o, NXArchInfo const *arch_info,
 		syms_insert(ctx, syms, i, &head);
 	}
 
-	/* Reset section saves for future uses */
-	ctx->nsects = 0;
-	ft_memset(ctx->sects, 0, sizeof ctx->sects);
-
-	/* In case of FAT file and  multiple arch, add some info btw two outputs */
-	if (obj_ofile(o) == OFILE_FAT && obj_target(o) == OFILE_NX_ALL) {
-		if (ctx->arch_printed) ft_printf("\n");
-		ft_printf("%s (for architecture %s):\n",
-		          ctx->bin, arch_info ? arch_info->name : "none");
-		ctx->arch_printed = true;
-	}
-
 	/* Everything is done here (collect and sort), just dump.. */
 	for (int const padding = obj_ism64(o) ? 16 : 8; head; head = head->next) {
 
@@ -272,10 +258,8 @@ static int symtab_collect(obj_t const o, NXArchInfo const *arch_info,
 	return 0;
 }
 
-static int segment_collect(obj_t const o, NXArchInfo const *const arch_info,
-                           size_t off, void *const user)
+static int segment_collect(obj_t const o, size_t off, void *const user)
 {
-	(void)arch_info;
 	struct nm_context *const ctx = user;
 
 	/* Peek the segment structure */
@@ -315,10 +299,8 @@ static int segment_collect(obj_t const o, NXArchInfo const *const arch_info,
 	return 0;
 }
 
-static int segment_64_collect(obj_t const o, NXArchInfo const *const arch_info,
-                              size_t off, void *const user)
+static int segment_64_collect(obj_t const o, size_t off, void *const user)
 {
-	(void)arch_info;
 	struct nm_context *const ctx = user;
 
 	/* Peek the segment structure */
@@ -358,18 +340,30 @@ static int segment_64_collect(obj_t const o, NXArchInfo const *const arch_info,
 	return 0;
 }
 
-static void on_object(char const *obj, size_t obj_len, void *user)
+static void on_load(obj_t const o, NXArchInfo const *const arch_info,
+                    char const *sobj_name, size_t sobj_name_len, void *user)
 {
 	struct nm_context *const ctx = user;
 
-	if (obj) ft_printf("\n%s(%.*s):\n", ctx->bin, (unsigned)obj_len, obj);
-	else if (!ctx->alone)
+	if (sobj_name && sobj_name_len)
+		ft_printf("\n%s(%.*s):\n", ctx->bin, (unsigned)sobj_name_len, sobj_name);
+
+	/* In case of FAT file and  multiple arch, add some info btw two outputs */
+	else if (obj_ofile(o) == OFILE_FAT && obj_target(o) == OFILE_NX_ALL)
+		ft_printf("\n%s (for architecture %s):\n",
+		          ctx->bin, arch_info ? arch_info->name : "none");
+
+	else if (ctx->nfiles > 1)
 		ft_printf("\n%s:\n", ctx->bin);
+
+	/* Reset section saves */
+	ctx->nsects = 0;
+	ft_memset(ctx->sects, 0, sizeof ctx->sects);
 }
 
 /* nm collectors */
 static const struct ofile_collector nm_collector = {
-	.on_object = on_object,
+	.load = on_load,
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SYMTAB]     = symtab_collect,
@@ -434,16 +428,16 @@ int main(int ac, char *av[])
 	/* Default file if none */
 	if (i == ac) av[ac++] = "a.out";
 
+	int const nfiles = ac - i;
+
 	/* Loop though argument and dump each one */
 	for (; i < ac; ++i) {
 
-		/* Add some indication btw two output */
-		ctx.alone = i + 1 >= ac;
-
 		/* Retrieve flags from parsed options
 		 * and bin from cmd line argument */
-		ctx.flags = flags;
-		ctx.bin   = av[i];
+		ctx.flags  = flags;
+		ctx.bin    = av[i];
+		ctx.nfiles = nfiles;
 
 		/* Collect Mach-o object using nm collectors */
 		int const err = ofile_collect(ctx.bin, arch_info, &nm_collector, &ctx);

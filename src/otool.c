@@ -34,10 +34,8 @@ static inline void dump(const char *text, uint64_t offset, uint64_t size,
 	}
 }
 
-static int segment_collect(obj_t const o, NXArchInfo const *arch_info,
-                           size_t off, void *const user)
+static int segment_collect(obj_t const o, size_t off, void *const user)
 {
-	(void)arch_info;
 	(void)user;
 	const struct segment_command *const seg = obj_peek(o, off, sizeof *seg);
 
@@ -88,10 +86,8 @@ static int segment_collect(obj_t const o, NXArchInfo const *arch_info,
 	return 0;
 }
 
-static int segment_64_collect(obj_t const o, NXArchInfo const *arch_info,
-                              size_t off, void *const user)
+static int segment_64_collect(obj_t const o, size_t off, void *const user)
 {
-	(void)arch_info;
 	(void)user;
 	const struct segment_command_64 *const seg =
 		obj_peek(o, off, sizeof *seg);
@@ -144,7 +140,7 @@ static int segment_64_collect(obj_t const o, NXArchInfo const *arch_info,
 }
 
 /* otool collectors */
-static const struct ofile_collector nm_collector = {
+static const struct ofile_collector otool_collector = {
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SEGMENT]    = segment_collect,
@@ -167,11 +163,12 @@ int main(int ac, char *av[])
 		ft_printf("%s:\n", av[i]);
 
 		/* Collect Mach-o object using otool collectors */
-		if (ofile_collect(av[i], OFILE_NX_HOST, &nm_collector, NULL)) {
+		int const err = ofile_collect(av[i], OFILE_NX_HOST,
+		                              &otool_collector, NULL);
+		if (err) {
 
 			/* Dump error, then continue.. */
-			ft_fprintf(g_stderr, "%s: %s: %s\n",
-			           exe, av[i], ft_strerror(errno));
+			ft_fprintf(g_stderr, "%s: %s: %s\n", exe, av[i], ofile_etoa(err));
 			ret = EXIT_FAILURE;
 		}
 	}

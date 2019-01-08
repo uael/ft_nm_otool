@@ -88,7 +88,7 @@ uint32_t obj_swap32(obj_t obj, uint32_t u);
 uint64_t obj_swap64(obj_t obj, uint64_t u);
 
 
-/* --- Architecture --- */
+/* --- Mach-o object getter --- */
 
 /**
  * Possible value to pass to `ofile_collect` `arch_info` argument,
@@ -133,14 +133,14 @@ const void *obj_peek(obj_t obj, size_t off, size_t len);
 /**
  * Object file collector call-back type definition
  */
-typedef int ofile_collector_t(obj_t, NXArchInfo const *, size_t, void *);
+typedef int ofile_collector_t(obj_t, size_t, void *);
 
 /**
  * Object file collector definition
  */
 struct ofile_collector
 {
-	void (*on_object)(char const *name, size_t len, void *);
+	void (*load)(obj_t, NXArchInfo const *, char const *, size_t, void *);
 
 	size_t ncollector; /**< Actual max size of `collectors` field */
 	ofile_collector_t *const collectors[]; /**< Collectors array */
@@ -149,12 +149,12 @@ struct ofile_collector
 /**
  * Collect though a Mach-o object
  * @param filename   [in] Path of the mach-o object in the system
- * @param arch_info  [in] Arch to collect, OFILE_NX_HOST for host and NULL for all
+ * @param target  [in] Arch to collect, OFILE_NX_HOST for host and NULL for all
  * @param collector  [in] User collection call-back's
  * @param user       [in] Optional user parameter
  * @return                0 on success, -1 otherwise with `errno` set
  */
-int ofile_collect(const char *filename, NXArchInfo const *arch_info,
+int ofile_collect(const char *filename, NXArchInfo const *target,
                   const struct ofile_collector *collector, void *user);
 
 

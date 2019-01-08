@@ -64,6 +64,9 @@ struct obj
 	uint8_t const *buf; /**< Object mapped buffer      */
 	size_t size;        /**< Object mapped buffer size */
 
+	char const *name; /**< Object name buffer      */
+	size_t name_len;  /**< Object name buffer size */
+
 	bool m64; /**< Object is 64 bits       */
 	bool le;  /**< Object is little-endian */
 };
@@ -96,7 +99,7 @@ inline uint64_t obj_swap64(struct obj const *const o, uint64_t const u)
 }
 
 
-/* --- Architecture --- */
+/* --- Mach-o object getter --- */
 
 /**
  * Retrieve if this Mach-o object is 64 bits based
@@ -140,6 +143,7 @@ inline const void *obj_peek(struct obj const *const o, size_t const off,
  */
 static int load(NXArchInfo const *target, enum ofile ofile,
                 uint8_t const *buf, size_t size,
+                char const *obj, size_t obj_len,
                 struct ofile_collector const *collector, void *user);
 
 /**
@@ -151,7 +155,7 @@ static int load(NXArchInfo const *target, enum ofile ofile,
  * @return           0 on success, -1 otherwise with `errno` set
  */
 static inline int mh_load(struct obj const *o, size_t off,
-                          struct ofile_collector const *collectors, void *user)
+                          struct ofile_collector const *collector, void *user)
 {
 	/* Didn't use the mach_header_64 struct since we only access fields
 	 * which have the same size on both 32 and 64 struct */
@@ -173,6 +177,10 @@ static inline int mh_load(struct obj const *o, size_t off,
 	    o->target->cpusubtype != arch_info->cpusubtype))
 		return 0;
 
+	/* User call-back on load */
+	if (collector->load)
+		collector->load(o, arch_info, o->name, o->name_len, user);
+
 	static size_t const header_sizes[] = {
 		[false] = sizeof(struct mach_header),
 		[true]  = sizeof(struct mach_header_64)
@@ -192,8 +200,8 @@ static inline int mh_load(struct obj const *o, size_t off,
 		uint32_t const cmd = obj_swap32(o, lc->cmd);
 
 		/* Perform user collection if enabled */
-		if (cmd < collectors->ncollector && collectors->collectors[cmd])
-			err = collectors->collectors[cmd](o, arch_info, off, user);
+		if (cmd < collector->ncollector && collector->collectors[cmd])
+			err = collector->collectors[cmd](o, off, user);
 
 		off += obj_swap32(o, lc->cmdsize);
 	}
@@ -287,7 +295,7 @@ static inline int fat_load(struct obj const *const o, size_t const off,
 		
 		/* Load at new offset */
 		int const err = load(arch_info, OFILE_FAT, o->buf + arch_off, arch_size,
-		                     collector, user);
+		                     NULL, 0, collector, user);
 		if (err) return err;
 	}
 
@@ -451,12 +459,8 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 			err = get_ar_hdr(obj, &ran_off, &ran_info, false);
 			if (err) break;
 
-			if (collector->on_object)
-				collector->on_object(ran_info.name, ran_info.name_len,
-				                     user);
-
-			err = load(obj->target, OFILE_AR, ran_info.obj,
-			           ran_info.size, collector, user);
+			err = load(obj->target, OFILE_AR, ran_info.obj, ran_info.size,
+			           ran_info.name, ran_info.name_len, collector, user);
 			if (err) break;
 		}
 
@@ -479,12 +483,8 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 			err = get_ar_hdr(obj, &ran_off, &ran_info, false);
 			if (err) break;
 
-			if (collector->on_object)
-				collector->on_object(ran_info.name, ran_info.name_len,
-				                     user);
-
-			err = load(obj->target, OFILE_AR, ran_info.obj,
-			           ran_info.size, collector, user);
+			err = load(obj->target, OFILE_AR, ran_info.obj, ran_info.size,
+			           ran_info.name, ran_info.name_len, collector, user);
 			if (err) break;
 		}
 
@@ -506,6 +506,7 @@ static inline int ar_load(struct obj const *const obj, size_t off,
  */
 static int load(NXArchInfo const *const target, enum ofile const ofile,
                 uint8_t const *const buf, size_t const size,
+                char const *name, size_t name_len,
                 struct ofile_collector const *const collector, void *const user)
 {
 	static struct {
@@ -545,6 +546,7 @@ static int load(NXArchInfo const *const target, enum ofile const ofile,
 	struct obj const o = (struct obj){
 		.target = target, .ofile = ofile,
 		.buf = buf, .size = size,
+		.name = name, .name_len = name_len,
 		.m64 = loaders[i].m64, .le = loaders[i].le
 	};
 
@@ -555,7 +557,7 @@ static int load(NXArchInfo const *const target, enum ofile const ofile,
 /**
  * Collect though a Mach-o object
  */
-int ofile_collect(char const *const filename, NXArchInfo const *const arch_info,
+int ofile_collect(char const *const filename, NXArchInfo const *const target,
                   struct ofile_collector const *const collector,
                   void *const user)
 {
@@ -579,7 +581,7 @@ int ofile_collect(char const *const filename, NXArchInfo const *const arch_info,
 
 	/* Start loading,
 	 * then unmap file and break */
-	int const err = load(arch_info, OFILE_MH, buf, size, collector, user);
+	int const err = load(target, OFILE_MH, buf, size, NULL, 0, collector, user);
 	munmap(buf, size);
 
 	return err;
