@@ -15,6 +15,7 @@ LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_atoi.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_atol.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_atoll.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_itoa.o
+LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_qsort.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_strerror.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_wctomb.o
 
@@ -116,3 +117,8 @@ LIBFT_OPTS_OBJ += $(LIBFT_ROOT_DIR)/src/opts/ft_optusage.o
 ifeq (1,$(FT_OPTS_ENABLE))
   LIBFT_OBJ += $(LIBFT_OPTS_OBJ)
 endif
+
+EBADMACHO := 0x242
+EBADARCH  := 0x243
+$(call set_config,$(LIBFT_OBJ),EBADMACHO)
+$(call set_config,$(LIBFT_OBJ),EBADARCH)

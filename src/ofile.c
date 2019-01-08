@@ -18,6 +18,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <sys/mman.h>
@@ -390,6 +391,26 @@ static int get_ar_hdr(struct obj const *const obj, size_t *const off,
 	return 0;
 }
 
+static int cmp_ranlib(void const *const a, void const *const b, size_t size)
+{
+	(void)size;
+	struct ranlib const *const ranlib_a = a;
+	struct ranlib const *const ranlib_b = b;
+
+	return (ranlib_a->ran_off > ranlib_b->ran_off) -
+	       (ranlib_a->ran_off < ranlib_b->ran_off);
+}
+
+static int cmp_ranlib_64(void const *const a, void const *const b, size_t size)
+{
+	(void)size;
+	struct ranlib_64 const *const ranlib_a = a;
+	struct ranlib_64 const *const ranlib_b = b;
+
+	return (ranlib_a->ran_off > ranlib_b->ran_off) -
+	       (ranlib_a->ran_off < ranlib_b->ran_off);
+}
+
 /**
  * Start at `ar_header` and load each ar object
  * @param obj        [in] Mach-o object
@@ -416,11 +437,16 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 	if (ft_strncmp(info.name, SYMDEF, info.name_len) == 0 ||
 	    ft_strncmp(info.name, SYMDEF_SORTED, info.name_len) == 0) {
 
-		size_t const nranlibs = info.ranlibs_size / sizeof(struct ranlib);
+		struct ranlib *const ranlibs = malloc(info.ranlibs_size);
+		if (ranlibs == NULL) return -1;
+		size_t const nranlibs = info.ranlibs_size / sizeof *ranlibs;
+
+		ft_memcpy(ranlibs, info.ranlibs, info.ranlibs_size);
+		ft_qsort(ranlibs, nranlibs, sizeof *ranlibs, cmp_ranlib);
 
 		for (size_t i = 0; i < nranlibs; ++i) {
 			struct ar_info ran_info;
-			size_t ran_off = ((struct ranlib *)info.ranlibs)[i].ran_off;
+			size_t ran_off = ranlibs[i].ran_off;
 
 			err = get_ar_hdr(obj, &ran_off, &ran_info, false);
 			if (err) return err;
@@ -437,11 +463,16 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 	else if (ft_strncmp(info.name, SYMDEF_64, info.name_len) == 0 ||
 	         ft_strncmp(info.name, SYMDEF_64_SORTED, info.name_len) == 0) {
 
-		size_t const nranlibs = info.ranlibs_size / sizeof(struct ranlib_64);
+		struct ranlib_64 *const ranlibs = malloc(info.ranlibs_size);
+		if (ranlibs == NULL) return -1;
+		size_t const nranlibs = info.ranlibs_size / sizeof *ranlibs;
+
+		ft_memcpy(ranlibs, info.ranlibs, info.ranlibs_size);
+		ft_qsort(ranlibs, nranlibs, sizeof *ranlibs, cmp_ranlib_64);
 
 		for (size_t i = 0; i < nranlibs; ++i) {
 			struct ar_info ran_info;
-			size_t ran_off = ((struct ranlib_64 *)info.ranlibs)[i].ran_off;
+			size_t ran_off = ranlibs[i].ran_off;
 
 			err = get_ar_hdr(obj, &ran_off, &ran_info, false);
 			if (err) return err;

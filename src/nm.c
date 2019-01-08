@@ -362,7 +362,7 @@ static void on_object(char const *obj, size_t obj_len, void *user)
 {
 	struct nm_context *const ctx = user;
 
-	if (obj) ft_printf("\n%s(%.*s):\n", ctx->bin, (unsigned)obj, obj_len);
+	if (obj) ft_printf("\n%s(%.*s):\n", ctx->bin, (unsigned)obj_len, obj);
 	else if (!ctx->alone)
 		ft_printf("\n%s:\n", ctx->bin);
 }
