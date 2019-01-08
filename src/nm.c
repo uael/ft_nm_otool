@@ -258,6 +258,24 @@ static int symtab_collect(obj_t const o, size_t const off, void *const user)
 	return 0;
 }
 
+static int sects_update(struct nm_context *const ctx,
+                        struct section const *const sect)
+{
+	if (sect == NULL) return NM_E_INVAL_SECTION;
+
+	/* Update section table */
+	if (ft_strcmp("__text", sect->sectname) == 0)
+		ctx->sects[ctx->nsects++] = 't';
+	else if (ft_strcmp("__data", sect->sectname) == 0)
+		ctx->sects[ctx->nsects++] = 'd';
+	else if (ft_strcmp("__bss", sect->sectname) == 0)
+		ctx->sects[ctx->nsects++] = 'b';
+	else
+		ctx->sects[ctx->nsects++] = 's';
+
+	return 0;
+}
+
 static int segment_collect(obj_t const o, size_t off, void *const user)
 {
 	struct nm_context *const ctx = user;
@@ -271,32 +289,20 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 		return (errno = EBADARCH), NM_E_INVAL_ARCH;
 
 	off += sizeof *seg;
+	uint32_t nsects = obj_swap32(o, seg->nsects);
+
+	/* No more space to store sections.. */
+	if (ctx->nsects + nsects >= COUNT_OF(ctx->sects))
+		return (errno = EBADMACHO), NM_E_INVAL_SECTION_COUNT;
+
+	int err = 0;
 
 	/* Loop though section and collect each one
 	 * section is next to it's header */
-	for (uint32_t nsects = obj_swap32(o, seg->nsects); nsects--;
-	     off += sizeof(struct section)) {
+	for (; err == 0 && nsects--; off += sizeof(struct section))
+		err = sects_update(ctx, obj_peek(o, off, sizeof(struct section)));
 
-		/* No more space to store sections.. */
-		if (ctx->nsects == COUNT_OF(ctx->sects))
-			return (errno = EBADMACHO), NM_E_INVAL_SECTION_COUNT;
-
-		/* Peek the section structure */
-		struct section const *const sect = obj_peek(o, off, sizeof *sect);
-		if (sect == NULL) return NM_E_INVAL_SECTION;
-
-		/* Update section table */
-		if (ft_strcmp("__text", sect->sectname) == 0)
-			ctx->sects[ctx->nsects++] = 't';
-		else if (ft_strcmp("__data", sect->sectname) == 0)
-			ctx->sects[ctx->nsects++] = 'd';
-		else if (ft_strcmp("__bss", sect->sectname) == 0)
-			ctx->sects[ctx->nsects++] = 'b';
-		else
-			ctx->sects[ctx->nsects++] = 's';
-	}
-
-	return 0;
+	return err;
 }
 
 static int segment_64_collect(obj_t const o, size_t off, void *const user)
@@ -312,47 +318,39 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 		return (errno = EBADARCH), NM_E_INVAL_ARCH;
 
 	off += sizeof *seg;
+	uint32_t nsects = obj_swap32(o, seg->nsects);
+
+	/* No more space to store sections.. */
+	if (ctx->nsects + nsects >= COUNT_OF(ctx->sects))
+		return (errno = EBADMACHO), NM_E_INVAL_SECTION_COUNT;
+
+	int err = 0;
 
 	/* Loop though section and collect each one
 	 * section is next to it's header */
-	for (uint32_t nsects = obj_swap32(o, seg->nsects); nsects--;
-	     off += sizeof(struct section_64)) {
+	for (; err == 0 && nsects--; off += sizeof(struct section_64))
+		err = sects_update(ctx, obj_peek(o, off, sizeof(struct section_64)));
 
-		/* No more space to store sections.. */
-		if (ctx->nsects == COUNT_OF(ctx->sects))
-			return (errno = EBADMACHO), NM_E_INVAL_SECTION_COUNT;
-
-		/* Peek the section structure */
-		struct section_64 const *const sect = obj_peek(o, off, sizeof *sect);
-		if (sect == NULL) return NM_E_INVAL_SECTION;
-
-		/* Update section table */
-		if (ft_strcmp("__text", sect->sectname) == 0)
-			ctx->sects[ctx->nsects++] = 't';
-		else if (ft_strcmp("__data", sect->sectname) == 0)
-			ctx->sects[ctx->nsects++] = 'd';
-		else if (ft_strcmp("__bss", sect->sectname) == 0)
-			ctx->sects[ctx->nsects++] = 'b';
-		else
-			ctx->sects[ctx->nsects++] = 's';
-	}
-
-	return 0;
+	return err;
 }
 
 static void on_load(obj_t const o, NXArchInfo const *const arch_info,
-                    char const *sobj_name, size_t sobj_name_len, void *user)
+                    void *user)
 {
 	struct nm_context *const ctx = user;
+	char const *name;
+	size_t name_len;
 
-	if (sobj_name && sobj_name_len)
-		ft_printf("\n%s(%.*s):\n", ctx->bin, (unsigned)sobj_name_len, sobj_name);
+	/* In case of archive sub object, name is non-null */
+	if ((name = obj_name(o, &name_len)))
+		ft_printf("\n%s(%.*s):\n", ctx->bin, (unsigned)name_len, name);
 
-	/* In case of FAT file and  multiple arch, add some info btw two outputs */
+	/* In case of FAT file and multiple arch, also print arch info name */
 	else if (obj_ofile(o) == OFILE_FAT && obj_target(o) == OFILE_NX_ALL)
 		ft_printf("\n%s (for architecture %s):\n",
 		          ctx->bin, arch_info ? arch_info->name : "none");
 
+	/* In any other case, only print info id there is more than one argument */
 	else if (ctx->nfiles > 1)
 		ft_printf("\n%s:\n", ctx->bin);
 

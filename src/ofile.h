@@ -25,6 +25,7 @@
 #include <mach-o/stab.h>
 #include <mach-o/swap.h>
 
+
 #define AR_CIGAM  (0x72613C21)
 #define AR_MAGIC  (0x213C6172)
 
@@ -33,12 +34,16 @@
  */
 typedef struct obj const *obj_t;
 
+/**
+ * Ofile error codes
+ */
 enum
 {
 	OFILE_E_INVAL_MAGIC  = 1, /**< Invalid magic                 */
 	OFILE_E_INVAL_FATHDR,     /**< Invalid fat header            */
 	OFILE_E_INVAL_FATARCH,    /**< Invalid fat archs             */
 	OFILE_E_INVAL_ARCHINFO,   /**< Invalid arch info             */
+	OFILE_E_INVAL_ARCHOBJ,    /**< Invalid arch object           */
 	OFILE_E_INVAL_MHHDR,      /**< Invalid mach-o header         */
 	OFILE_E_INVAL_ARHDR,      /**< Invalid archive header        */
 	OFILE_E_INVAL_AROBJHDR,   /**< Invalid archive object header */
@@ -48,18 +53,22 @@ enum
 };
 
 /**
- *
- * @param err
- * @return
+ * Retrieve the string representation of an error code
+ * @param err  [in] Error code
+ * @return          string representation `err`
  */
 char const *ofile_etoa(int err);
 
+/**
+ * Ofile types
+ */
 enum ofile
 {
-	OFILE_MH = 0,
-	OFILE_FAT,
-	OFILE_AR,
+	OFILE_MH = 0, /**< Mach-o ofile  */
+	OFILE_FAT,    /**< FAT ofile     */
+	OFILE_AR,     /**< Archive ofile */
 };
+
 
 /* --- Endianness --- */
 
@@ -118,8 +127,13 @@ enum ofile obj_ofile(obj_t obj);
  */
 NXArchInfo const *obj_target(obj_t obj);
 
-
-/* --- Collection --- */
+/**
+ * Retrieve Mach-o object name, only for archive
+ * @param obj       [in] Mach-o object
+ * @param out_len  [out] Mach-o object out name length
+ * @return               Mach-o object name
+ */
+char const *obj_name(obj_t obj, size_t *out_len);
 
 /**
  * Peek sized data at offset on Mach-o object
@@ -130,17 +144,20 @@ NXArchInfo const *obj_target(obj_t obj);
  */
 const void *obj_peek(obj_t obj, size_t off, size_t len);
 
+
+/* --- Collection --- */
+
 /**
  * Object file collector call-back type definition
  */
-typedef int ofile_collector_t(obj_t, size_t, void *);
+typedef int ofile_collector_t(obj_t obj, size_t off, void *user);
 
 /**
  * Object file collector definition
  */
 struct ofile_collector
 {
-	void (*load)(obj_t, NXArchInfo const *, char const *, size_t, void *);
+	void (*load)(obj_t obj, NXArchInfo const *arch_info, void *user);
 
 	size_t ncollector; /**< Actual max size of `collectors` field */
 	ofile_collector_t *const collectors[]; /**< Collectors array */
@@ -149,7 +166,7 @@ struct ofile_collector
 /**
  * Collect though a Mach-o object
  * @param filename   [in] Path of the mach-o object in the system
- * @param target  [in] Arch to collect, OFILE_NX_HOST for host and NULL for all
+ * @param target     [in] Arch to collect, see OFILE_NX_*
  * @param collector  [in] User collection call-back's
  * @param user       [in] Optional user parameter
  * @return                0 on success, -1 otherwise with `errno` set

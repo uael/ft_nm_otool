@@ -20,7 +20,7 @@
 #include <stdlib.h>
 
 static inline void dump(const char *text, uint64_t offset, uint64_t size,
-						unsigned padd)
+                        unsigned padd)
 {
 	ft_printf("Contents of (__TEXT,__text) section\n");
 
@@ -36,20 +36,17 @@ static inline void dump(const char *text, uint64_t offset, uint64_t size,
 
 static int segment_collect(obj_t const o, size_t off, void *const user)
 {
-	(void)user;
+	(void) user;
 	const struct segment_command *const seg = obj_peek(o, off, sizeof *seg);
 
 	if (seg == NULL)
 		return -1;
 
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o)) {
-		errno = EBADMACHO;
-		return -1;
-	}
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
+		return (errno = EBADARCH), -1;
 
 	/* Only dump section's of __TEXT segment */
-	if (ft_strcmp("__TEXT", seg->segname) != 0)
-		return 0;
+	if (ft_strcmp("__TEXT", seg->segname) != 0) return 0;
 
 	off += sizeof *seg;
 
@@ -59,21 +56,17 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 
 		/* Peek the section structure */
 		const struct section *const sect = obj_peek(o, off, sizeof *sect);
-
-		if (sect == NULL)
-			return -1;
+		if (sect == NULL) return -1;
 
 		if (ft_strcmp("__TEXT", sect->segname) == 0 &&
-			ft_strcmp("__text", sect->sectname) == 0) {
+		    ft_strcmp("__text", sect->sectname) == 0) {
 
 			uint64_t const offset = obj_swap32(o, sect->offset);
-			uint64_t const addr   = obj_swap32(o, sect->addr);
-			uint64_t const size   = obj_swap32(o, sect->size);
+			uint64_t const addr = obj_swap32(o, sect->addr);
+			uint64_t const size = obj_swap32(o, sect->size);
 
 			const char *const text = obj_peek(o, offset, size);
-
-			if (text == NULL)
-				return -1;
+			if (text == NULL) return -1;
 
 			/* It's a valid text section, dump it.. */
 			dump(text, addr, size, 8);
@@ -88,21 +81,16 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 
 static int segment_64_collect(obj_t const o, size_t off, void *const user)
 {
-	(void)user;
+	(void) user;
 	const struct segment_command_64 *const seg =
 		obj_peek(o, off, sizeof *seg);
+	if (seg == NULL) return -1;
 
-	if (seg == NULL)
-		return -1;
-
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o)) {
-		errno = EBADMACHO;
-		return -1;
-	}
+	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
+		return (errno = EBADARCH), -1;
 
 	/* Only dump section's of __TEXT segment */
-	if (ft_strcmp("__TEXT", seg->segname) != 0)
-		return 0;
+	if (ft_strcmp("__TEXT", seg->segname) != 0) return 0;
 
 	off += sizeof *seg;
 
@@ -112,21 +100,17 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 
 		/* Peek the section structure */
 		const struct section_64 *const sect = obj_peek(o, off, sizeof *sect);
-
-		if (sect == NULL)
-			return -1;
+		if (sect == NULL) return -1;
 
 		if (ft_strcmp("__TEXT", sect->segname) == 0 &&
-			ft_strcmp("__text", sect->sectname) == 0) {
+		    ft_strcmp("__text", sect->sectname) == 0) {
 
 			uint64_t const offset = obj_swap64(o, sect->offset);
-			uint64_t const addr   = obj_swap64(o, sect->addr);
-			uint64_t const size   = obj_swap64(o, sect->size);
+			uint64_t const addr = obj_swap64(o, sect->addr);
+			uint64_t const size = obj_swap64(o, sect->size);
 
 			const char *const text = obj_peek(o, offset, size);
-
-			if (text == NULL)
-				return -1;
+			if (text == NULL) return -1;
 
 			/* It's a valid text section, dump it.. */
 			dump(text, addr, size, 16);
