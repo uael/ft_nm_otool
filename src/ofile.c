@@ -449,7 +449,7 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 			size_t ran_off = ranlibs[i].ran_off;
 
 			err = get_ar_hdr(obj, &ran_off, &ran_info, false);
-			if (err) return err;
+			if (err) break;
 
 			if (collector->on_object)
 				collector->on_object(ran_info.name, ran_info.name_len,
@@ -457,8 +457,10 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 
 			err = load(obj->target, OFILE_AR, ran_info.obj,
 			           ran_info.size, collector, user);
-			if (err) return err;
+			if (err) break;
 		}
+
+		free(ranlibs);
 	}
 	else if (ft_strncmp(info.name, SYMDEF_64, info.name_len) == 0 ||
 	         ft_strncmp(info.name, SYMDEF_64_SORTED, info.name_len) == 0) {
@@ -475,7 +477,7 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 			size_t ran_off = ranlibs[i].ran_off;
 
 			err = get_ar_hdr(obj, &ran_off, &ran_info, false);
-			if (err) return err;
+			if (err) break;
 
 			if (collector->on_object)
 				collector->on_object(ran_info.name, ran_info.name_len,
@@ -483,8 +485,10 @@ static inline int ar_load(struct obj const *const obj, size_t off,
 
 			err = load(obj->target, OFILE_AR, ran_info.obj,
 			           ran_info.size, collector, user);
-			if (err) return err;
+			if (err) break;
 		}
+
+		free(ranlibs);
 	}
 
 	return err;
