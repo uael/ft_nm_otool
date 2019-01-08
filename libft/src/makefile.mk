@@ -117,8 +117,3 @@ LIBFT_OPTS_OBJ += $(LIBFT_ROOT_DIR)/src/opts/ft_optusage.o
 ifeq (1,$(FT_OPTS_ENABLE))
   LIBFT_OBJ += $(LIBFT_OPTS_OBJ)
 endif
-
-EBADMACHO := 0x242
-EBADARCH  := 0x243
-$(call set_config,$(LIBFT_OBJ),EBADMACHO)
-$(call set_config,$(LIBFT_OBJ),EBADARCH)
