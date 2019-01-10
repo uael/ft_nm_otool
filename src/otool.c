@@ -62,8 +62,8 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 		    ft_strcmp("__text", sect->sectname) == 0) {
 
 			uint64_t const offset = obj_swap32(o, sect->offset);
-			uint64_t const addr = obj_swap32(o, sect->addr);
-			uint64_t const size = obj_swap32(o, sect->size);
+			uint64_t const addr   = obj_swap32(o, sect->addr);
+			uint64_t const size   = obj_swap32(o, sect->size);
 
 			const char *const text = obj_peek(o, offset, size);
 			if (text == NULL) return -1;
@@ -106,8 +106,8 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 		    ft_strcmp("__text", sect->sectname) == 0) {
 
 			uint64_t const offset = obj_swap64(o, sect->offset);
-			uint64_t const addr = obj_swap64(o, sect->addr);
-			uint64_t const size = obj_swap64(o, sect->size);
+			uint64_t const addr   = obj_swap64(o, sect->addr);
+			uint64_t const size   = obj_swap64(o, sect->size);
 
 			const char *const text = obj_peek(o, offset, size);
 			if (text == NULL) return -1;

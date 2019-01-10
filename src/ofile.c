@@ -495,7 +495,7 @@ static int load(struct obj *const obj,
 			return (errno = EBADMACHO), OFILE_E_INVAL_MAGIC;
 
 		/* When loading from FAT, only expect MH */
-		else if (obj->ofile == OFILE_AR && i == 5)
+		else if (obj->ofile == OFILE_FAT && i == 5)
 			return (errno = EBADMACHO), OFILE_E_INVAL_MAGIC;
 
 	/* Unable to find proper loader for this magic */
