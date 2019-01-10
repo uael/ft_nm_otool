@@ -8,4 +8,5 @@
 /**/.idea/
 compile_commands.json
 *.txt
+!/test/*.txt
 *.info
