@@ -78,8 +78,6 @@ struct nm_context
 
 struct sym
 {
-	struct sym *next;
-
 	char const *string;
 	uint64_t off;
 	uint32_t str_max_size;
@@ -113,66 +111,48 @@ static inline char sym_type(uint64_t const n_value, uint8_t n_type,
 
 }
 
-static inline void syms_insert(struct nm_context *const ctx,
-							   struct sym syms[], uint32_t i, struct sym **head)
+static inline bool syms_insert(struct nm_context *const ctx,
+							   struct sym *sym)
 {
-	struct sym **it;
-
 	/* Skip debug symbol if option `a` isn't active */
-	if (!(ctx->flags & NM_OPT_a) && syms[i].type == '-')
-		return;
+	if (!(ctx->flags & NM_OPT_a) && sym->type == '-')
+		return false;
 
 	/* Skip non-external symbol if option `g` is active */
-	if ((ctx->flags & NM_OPT_g) && !ft_isupper(syms[i].type))
-		return;
+	if ((ctx->flags & NM_OPT_g) && !ft_isupper(sym->type))
+		return false;
 
 	/* Skip non-undefined symbol if option `u` is active */
-	if ((ctx->flags & NM_OPT_u) && ft_tolower(syms[i].type) != 'u')
-		return;
+	if ((ctx->flags & NM_OPT_u) && ft_tolower(sym->type) != 'u')
+		return false;
 
 	/* Skip non-external-undefined symbol if option `u` is active */
-	if ((ctx->flags & NM_OPT_U) && syms[i].type != 'U')
-		return;
+	if ((ctx->flags & NM_OPT_U) && sym->type != 'U')
+		return false;
 
-	/* Insert symbol */
-	if (!(ctx->flags & NM_OPT_p)) {
+	return true;
+}
 
-		/* Save some instructions by using sorted direct insertion
-		 * into the symbol linked list */
-		for (it = head; *it; it = &(*it)->next) {
+static int syms_n_cmp(const void *a, const void *b, size_t n)
+{
+	(void)n;
+	struct sym const *const sym_a = a;
+	struct sym const *const sym_b = b;
 
-			/* Compare two symbol, alphabetically by default,
-			 * numerically by address if the `n` option is active */
-			int cmp = (ctx->flags & NM_OPT_n)
-				? (syms[i].off > (*it)->off) - (syms[i].off < (*it)->off)
-				: ft_strcmp(syms[i].string, (*it)->string);
+	return (sym_a->off > sym_b->off) - (sym_a->off < sym_b->off);
+}
 
-			/* Prioritize undefined symbols */
-			if (!(ctx->flags & NM_OPT_n) && cmp == 0 &&
-			    ft_tolower(syms[i].type) == 'u')
-				cmp = -1;
+static int syms_s_cmp(const void *a, const void *b, size_t n)
+{
+	(void)n;
+	struct sym const *const sym_a = a;
+	struct sym const *const sym_b = b;
 
-			/* Check if we get the right position
-			 * inverse comparison if the `r` option is active */
-			if ((ctx->flags & NM_OPT_r) ? cmp > 0 : cmp < 0) {
-				syms[i].next = *it;
-				break;
-			}
-		}
+	int const cmp = ft_strcmp(sym_a->string, sym_b->string);
 
-	} else {
+	/* Prioritize undefined symbols */
+	return cmp == 0 ? syms_n_cmp(a, b, n) : cmp;
 
-		it = head;
-
-		/* No sort (reverse), insert at head */
-		if ((ctx->flags & NM_OPT_r)) syms[i].next = *it;
-
-		/* No sort insert at tail */
-		else for (; *it; it = &(*it)->next);
-	}
-
-	/* Iterator got set, insert symbol */
-	*it = syms + i;
 }
 
 static int symtab_collect(obj_t const o, size_t const off, void *const user)
@@ -204,10 +184,12 @@ static int symtab_collect(obj_t const o, size_t const off, void *const user)
 	void const *const nls = obj_peek(o, soff, nl_sizes[obj_ism64(o)] * nsyms);
 	if (nls == NULL) return NM_E_INVAL_NLIST;
 
-	struct sym *head = NULL, syms[nsyms];
+	struct sym syms[nsyms];
 
 	/* For each nlist insert the symbol into `head` singly linked list
 	 * Options will affect insertion */
+	uint32_t real_nsyms = 0;
+
 	for (uint32_t i = 0; i < nsyms; ++i) {
 		uint64_t value;
 		uint32_t strx;
@@ -235,7 +217,7 @@ static int symtab_collect(obj_t const o, size_t const off, void *const user)
 
 		uint32_t const offset = stroff + strx;
 
-		syms[i] = (struct sym){
+		syms[real_nsyms] = (struct sym){
 			.str_max_size = stroff + strsize - offset,
 			.string = obj_peek(o, offset, stroff + strsize - offset),
 			.type = sym_type(value, type, sect, obj_swap16(o, desc), ctx),
@@ -243,11 +225,21 @@ static int symtab_collect(obj_t const o, size_t const off, void *const user)
 		};
 
 		/* Got a valid symbol, insert it */
-		syms_insert(ctx, syms, i, &head);
+		if (syms_insert(ctx, syms + real_nsyms))
+			++real_nsyms;
 	}
 
+	if (!(ctx->flags & NM_OPT_p))
+		ft_qsort(syms, real_nsyms, sizeof *syms,
+		         (ctx->flags & NM_OPT_n) ? syms_n_cmp : syms_s_cmp);
+
+	int const padding = obj_ism64(o) ? 16 : 8;
+
 	/* Everything is done here (collect and sort), just dump.. */
-	for (int const padding = obj_ism64(o) ? 16 : 8; head; head = head->next) {
+	for (uint32_t i = 0; i < real_nsyms; ++i) {
+
+		struct sym const *const head =
+			syms + ((ctx->flags & NM_OPT_r) ? real_nsyms - 1 - i : i);
 
 		/* Special output for valued and undefined symbol */
 		if (head->off || !(head->type == 'u' || head->type == 'U'))
