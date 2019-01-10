@@ -15,7 +15,7 @@
 inline void	*ft_memchr(void const *s, int c, size_t n)
 {
 	const int	*c_s = s;
-	uint8_t	    *b_s;
+	uint8_t		*b_s;
 	int			repeated_c;
 	int			mask;
 

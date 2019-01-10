@@ -21,13 +21,11 @@
 # endif
 
 # ifndef OFFSET_OF
-#  define OFFSET_OF(type, field) \
-	((size_t)((uintptr_t)&(((type *)(0))->field) - (uintptr_t)(0)))
+#  define OFFSET_OF(t, f) ((size_t)((uintptr_t)&(((t*)(0))->f)-(uintptr_t)(0)))
 # endif
 
 # ifndef CONTAINER_OF
-#  define CONTAINER_OF(ptr, type, field) \
-	((type *)((uintptr_t)(ptr) - OFFSET_OF(type, field)))
+#  define CONTAINER_OF(p, t, f) ((t *)((uintptr_t)(p) - OFFSET_OF(t, f)))
 # endif
 
 #endif

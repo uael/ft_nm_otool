@@ -14,7 +14,7 @@
 
 #include <errno.h>
 
-static const char *errno_str[] = {
+static const char *g_errno_str[] = {
 	[EPERM] = "Operation not permitted",
 	[ENOENT] = "No such file or directory",
 	[ESRCH] = "No such process",
@@ -106,8 +106,8 @@ static const char *errno_str[] = {
 	[EOWNERDEAD] = "Previous owner died",
 };
 
-char *ft_strerror(int eno)
+char	*ft_strerror(int eno)
 {
-	return eno < 0 || eno > (int)COUNT_OF(errno_str)
-		? "Unknown error" : (char *)errno_str[eno];
+	return (eno < 0 || eno > (int)COUNT_OF(g_errno_str)
+		? "Unknown error" : (char *)g_errno_str[eno]);
 }

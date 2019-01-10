@@ -243,7 +243,7 @@ static int symtab_collect(obj_t const o, size_t const off, void *const user)
 
 		/* Special output for valued and undefined symbol */
 		if (head->off || !(head->type == 'u' || head->type == 'U'))
-			ft_printf("%0*lx %c %.*s\n",
+			ft_printf("%0*llx %c %.*s\n",
 			          padding, head->off, head->type, head->str_max_size,
 			          head->string);
 

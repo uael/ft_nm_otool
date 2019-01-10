@@ -11,9 +11,10 @@
 /* ************************************************************************** */
 
 #include "ft/string.h"
-#include "ft/malloc.h"
+
+#include <stdlib.h>
 
 inline void	*ft_memdup(void const *src, size_t n)
 {
-	return (ft_memcpy(ft_malloc(n), src, n));
+	return (ft_memcpy(malloc(n), src, n));
 }

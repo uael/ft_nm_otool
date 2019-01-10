@@ -49,12 +49,19 @@ extern size_t	ft_fwrite(t_stream *f, void const *src, size_t n, size_t isz);
 extern int		ft_fflush(t_stream *f);
 extern void		ft_fflushstd(void);
 
-extern int		ft_asprintf(char **s, char const *fmt, ...);
-extern int		ft_dprintf(int fd, char const *fmt, ...);
-extern int		ft_fprintf(t_stream *f, char const *fmt, ...);
-extern int		ft_printf(char const *fmt, ...);
-extern int		ft_snprintf(char *s, size_t n, char const *fmt, ...);
-extern int		ft_sprintf(char *s, char const *fmt, ...);
+extern int		ft_asprintf(char **s, char const *fmt,
+					...) __attribute__((format(printf,2,3)));
+extern int		ft_dprintf(int fd, char const *fmt,
+					...) __attribute__((format(printf,2,3)));
+extern int		ft_fprintf(t_stream *f, char const *fmt,
+					...) __attribute__((format(printf,2,3)));
+extern int		ft_printf(char const *fmt,
+					...) __attribute__((format(printf,1,2)));
+extern int		ft_snprintf(char *s, size_t n, char const *fmt,
+					...) __attribute__((format(printf,3,4)));
+extern int		ft_sprintf(char *s, char const *fmt,
+					...) __attribute__((format(printf,2,3)));
+
 extern int		ft_vasprintf(char **s, char const *fmt, va_list ap);
 extern int		ft_vdprintf(int fd, char const *fmt, va_list ap);
 extern int		ft_vfprintf(t_stream *f, char const *fmt, va_list ap);

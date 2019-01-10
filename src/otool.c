@@ -19,13 +19,13 @@
 #include <errno.h>
 #include <stdlib.h>
 
-static inline void dump(const char *text, uint64_t offset, uint64_t size,
-                        unsigned padd)
+static inline void dump(const char *const text, uint64_t const off,
+                        uint64_t const size, unsigned const padd)
 {
 	ft_printf("Contents of (__TEXT,__text) section\n");
 
 	for (uint64_t i = 0; i < size; i += 0x10) {
-		ft_printf("%0*llx\t", padd, offset + i);
+		ft_printf("%0*llx\t", padd, off + i);
 
 		for (uint64_t j = 0; j < 0x10 && i + j < size; ++j)
 			ft_printf("%02hhx ", text[i + j]);
@@ -36,8 +36,8 @@ static inline void dump(const char *text, uint64_t offset, uint64_t size,
 
 static int segment_collect(obj_t const o, size_t off, void *const user)
 {
-	(void) user;
-	const struct segment_command *const seg = obj_peek(o, off, sizeof *seg);
+	(void)user;
+	struct segment_command const *const seg = obj_peek(o, off, sizeof *seg);
 
 	if (seg == NULL)
 		return -1;
@@ -55,7 +55,7 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 	for (uint32_t nsects = obj_swap32(o, seg->nsects); nsects--;) {
 
 		/* Peek the section structure */
-		const struct section *const sect = obj_peek(o, off, sizeof *sect);
+		struct section const *const sect = obj_peek(o, off, sizeof *sect);
 		if (sect == NULL) return -1;
 
 		if (ft_strcmp("__TEXT", sect->segname) == 0 &&
@@ -65,7 +65,7 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 			uint64_t const addr   = obj_swap32(o, sect->addr);
 			uint64_t const size   = obj_swap32(o, sect->size);
 
-			const char *const text = obj_peek(o, offset, size);
+			char const *const text = obj_peek(o, offset, size);
 			if (text == NULL) return -1;
 
 			/* It's a valid text section, dump it.. */
@@ -81,8 +81,8 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 
 static int segment_64_collect(obj_t const o, size_t off, void *const user)
 {
-	(void) user;
-	const struct segment_command_64 *const seg =
+	(void)user;
+	struct segment_command_64 const *const seg =
 		obj_peek(o, off, sizeof *seg);
 	if (seg == NULL) return -1;
 
@@ -99,7 +99,7 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 	for (uint32_t nsects = obj_swap32(o, seg->nsects); nsects--;) {
 
 		/* Peek the section structure */
-		const struct section_64 *const sect = obj_peek(o, off, sizeof *sect);
+		struct section_64 const *const sect = obj_peek(o, off, sizeof *sect);
 		if (sect == NULL) return -1;
 
 		if (ft_strcmp("__TEXT", sect->segname) == 0 &&
@@ -109,7 +109,7 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 			uint64_t const addr   = obj_swap64(o, sect->addr);
 			uint64_t const size   = obj_swap64(o, sect->size);
 
-			const char *const text = obj_peek(o, offset, size);
+			char const *const text = obj_peek(o, offset, size);
 			if (text == NULL) return -1;
 
 			/* It's a valid text section, dump it.. */
@@ -124,7 +124,7 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 }
 
 /* otool collectors */
-static const struct ofile_collector otool_collector = {
+static struct ofile_collector const otool_collector = {
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SEGMENT]    = segment_collect,
@@ -134,7 +134,7 @@ static const struct ofile_collector otool_collector = {
 
 int main(int ac, char *av[])
 {
-	const char *const exe = *av;
+	char const *const exe = *av;
 	int ret = EXIT_SUCCESS;
 
 	/* Default file if none */

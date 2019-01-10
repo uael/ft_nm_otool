@@ -10,8 +10,9 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "ft/malloc.h"
 #include "ft/stdio.h"
+
+#include <stdlib.h>
 
 int	ft_vasprintf(char **s, char const *fmt, va_list ap)
 {
@@ -23,5 +24,5 @@ int	ft_vasprintf(char **s, char const *fmt, va_list ap)
 	va_end(ap2);
 	if (ret < 0)
 		return (-1);
-	return (ft_vsnprintf(*s = ft_malloc(ret + 1U), ret + 1U, fmt, ap));
+	return (ft_vsnprintf(*s = malloc(ret + 1U), ret + 1U, fmt, ap));
 }

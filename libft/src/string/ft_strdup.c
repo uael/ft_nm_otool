@@ -11,9 +11,10 @@
 /* ************************************************************************** */
 
 #include "ft/string.h"
-#include "ft/malloc.h"
+
+#include <stdlib.h>
 
 inline char	*ft_strdup(char const *src)
 {
-	return (ft_strcpy(ft_malloc(ft_strlen(src) + 1), src));
+	return (ft_strcpy(malloc(ft_strlen(src) + 1), src));
 }

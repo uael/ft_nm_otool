@@ -25,10 +25,10 @@ static int	show_err(int err, char *name, char *option, size_t len)
 		return (0);
 	if (err == UNKNOWN_OPTION)
 		ft_fprintf(g_stderr, "%s: illegal option -- %.*s\n",
-			name, len, option);
+			name, (unsigned)len, option);
 	else if (err == NO_OPT)
 		ft_fprintf(g_stderr, "%s: argument required -- %.*s\n",
-			name, len, option);
+			name, (unsigned)len, option);
 	return (1);
 }
 
@@ -120,14 +120,14 @@ int			ft_optparse(const t_opt opts[], int *idx, int optc, char *optv[])
 		opt = optv[*idx];
 		s_opt = opt;
 		if (opt[0] != '-' || !opt[1])
-			break;
+			break ;
 		if (opt[1] != '-')
 			while (*++s_opt)
 				err |= parse_short(&s_opt, opts, optv, idx);
 		else if (!opt[2])
 		{
 			++*idx;
-			break;
+			break ;
 		}
 		else if (s_opt += 2)
 			err |= parse_long(&s_opt, opts, optv, idx);

@@ -92,7 +92,7 @@ char const	*glob_get_folder_name(char const *path)
 ** the sub-pattern is stored in some buffer, don't worry about it
 */
 
-bool			glob_get_sub_pattern(char *sub_pat_buf, char const *pattern, \
+bool		glob_get_sub_pattern(char *sub_pat_buf, char const *pattern, \
 								int depth, int flags)
 {
 	char	const	*dir_end;

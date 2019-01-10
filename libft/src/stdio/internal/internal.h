@@ -42,7 +42,7 @@ size_t			stdiowrite(t_stream *f, uint8_t const *s, size_t len);
 typedef union	u_varg
 {
 	uintmax_t	i;
-	double	    f;
+	double		f;
 	void		*p;
 }				t_varg;
 

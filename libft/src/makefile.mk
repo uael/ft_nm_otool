@@ -68,21 +68,6 @@ ifeq (1,$(FT_GLOB_ENABLE))
   LIBFT_OBJ += $(LIBFT_GLOB_OBJ)
 endif
 
-LIBFT_MALLOC_OBJ := $(LIBFT_ROOT_DIR)/src/malloc/ft_mpool.o
-LIBFT_MALLOC_OBJ += $(LIBFT_ROOT_DIR)/src/malloc/ft_palloc.o
-LIBFT_MALLOC_OBJ += $(LIBFT_ROOT_DIR)/src/malloc/ft_pfree.o
-LIBFT_MALLOC_OBJ += $(LIBFT_ROOT_DIR)/src/malloc/internal/heap.o
-LIBFT_MALLOC_OBJ += $(LIBFT_ROOT_DIR)/src/malloc/internal/heap_bin.o
-LIBFT_MALLOC_OBJ += $(LIBFT_ROOT_DIR)/src/malloc/internal/heap_lrg.o
-LIBFT_MALLOC_OBJ += $(LIBFT_ROOT_DIR)/src/malloc/internal/stack.o
-LIBFT_MALLOC_OBJ += $(LIBFT_ROOT_DIR)/src/malloc/internal/stack_chunk.o
-
-ifeq (1,$(FT_MALLOC_ENABLE))
-  LIBFT_OBJ += $(LIBFT_MALLOC_OBJ)
-
-  $(call set_config,$(LIBFT_MALLOC_OBJ),FT_MALLOC_MAX_MPOOL)
-endif
-
 LIBFT_STDIO_OBJ := $(LIBFT_ROOT_DIR)/src/stdio/ft_asprintf.o
 LIBFT_STDIO_OBJ += $(LIBFT_ROOT_DIR)/src/stdio/ft_dprintf.o
 LIBFT_STDIO_OBJ += $(LIBFT_ROOT_DIR)/src/stdio/ft_fflush.o

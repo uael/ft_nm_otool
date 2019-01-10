@@ -11,13 +11,14 @@
 /* ************************************************************************** */
 
 #include "ft/string.h"
-#include "ft/malloc.h"
+
+#include <stdlib.h>
 
 inline char	*ft_strndup(char const *src, size_t n)
 {
 	char	*dup;
 
-	dup = ft_malloc(n + 1);
+	dup = malloc(n + 1);
 	ft_memcpy(dup, src, n);
 	dup[n] = '\0';
 	return (dup);

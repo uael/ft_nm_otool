@@ -28,7 +28,8 @@ static char		**alloc_pathv(t_glob *pglob)
 	}
 	else
 	{
-		if (!(pglob->gl_pathv = ft_malloc(sizeof(char *) * (pglob->gl_pathc + 1))))
+		if (!(pglob->gl_pathv = ft_malloc(sizeof(char *) * \
+			(pglob->gl_pathc + 1))))
 			return (NULL);
 		return (pglob->gl_pathv);
 	}

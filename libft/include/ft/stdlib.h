@@ -23,7 +23,7 @@ extern long			ft_atol(const char *s);
 extern long long	ft_atoll(const char *s);
 extern char			*ft_itoa(int nb);
 extern int			ft_wctomb(char *s, wchar_t wc);
-extern void		    ft_qsort(void *base, size_t nel, size_t width, t_ncmp *cmp);
+extern void			ft_qsort(void *base, size_t nel, size_t width, t_ncmp *cmp);
 extern char			*ft_strerror(int eno);
 
 #endif

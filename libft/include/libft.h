@@ -15,7 +15,6 @@
 
 # include "ft/ctype.h"
 # include "ft/glob.h"
-# include "ft/malloc.h"
 # include "ft/stdio.h"
 # include "ft/stdlib.h"
 # include "ft/string.h"

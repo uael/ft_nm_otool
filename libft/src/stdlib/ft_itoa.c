@@ -11,8 +11,9 @@
 /* ************************************************************************** */
 
 #include "ft/ctype.h"
-#include "ft/malloc.h"
 #include "ft/stdlib.h"
+
+#include <stdlib.h>
 
 inline char	*ft_itoa(int nb)
 {
@@ -26,7 +27,7 @@ inline char	*ft_itoa(int nb)
 	pow = 1;
 	while (tmp /= 10)
 		pow++;
-	str = (char *)ft_malloc(pow + mod + 1);
+	str = (char *)malloc((size_t)(pow + mod + 1));
 	str[pow + mod] = 0;
 	if (mod)
 		*str++ = '-';
@@ -34,7 +35,7 @@ inline char	*ft_itoa(int nb)
 		nb = -nb;
 	while (pow--)
 	{
-		str[pow] = -(nb % 10) + '0';
+		str[pow] = (char)(-(nb % 10) + '0');
 		nb /= 10;
 	}
 	return (str - mod);
