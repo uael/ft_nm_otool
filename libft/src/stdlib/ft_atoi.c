@@ -23,7 +23,9 @@ inline int	ft_atoi(const char *s)
 		s++;
 	if (*s == '-' || *s == '+')
 		c = (*s++ == '-');
+	else
+		c = 0;
 	while (ft_isdigit(*s))
 		n = 10 * n - (*s++ - '0');
-	return (c ? -n : n);
+	return (c ? n : -n);
 }

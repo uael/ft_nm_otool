@@ -46,6 +46,7 @@ enum
 	OFILE_E_INVAL_ARCHOBJ,    /**< Invalid arch object           */
 	OFILE_E_INVAL_MHHDR,      /**< Invalid mach-o header         */
 	OFILE_E_INVAL_ARHDR,      /**< Invalid archive header        */
+	OFILE_E_NO_ARHDR,         /**< Invalid archive header size   */
 	OFILE_E_INVAL_AROBJHDR,   /**< Invalid archive object header */
 	OFILE_E_INVAL_LC,         /**< Invalid load command          */
 	OFILE_E_NOTFOUND_ARCH,    /**< Invalid arch match            */

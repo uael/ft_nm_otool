@@ -327,40 +327,6 @@ static int fat_load(struct obj const *const obj,
 /* --- Archive load --- */
 
 /**
- * Ranlib comparison
- * @param a     [in] Right element
- * @param b     [in] Left element
- * @param size  [in] Element size
- * @return           comparison result
- */
-static int cmp_ranlib(void const *const a, void const *const b, size_t size)
-{
-	(void)size;
-	struct ranlib const *const ranlib_a = a;
-	struct ranlib const *const ranlib_b = b;
-
-	return (ranlib_a->ran_off > ranlib_b->ran_off) -
-	       (ranlib_a->ran_off < ranlib_b->ran_off);
-}
-
-/**
- * Ranlib 64 bits comparison
- * @param a     [in] Right element
- * @param b     [in] Left element
- * @param size  [in] Element size
- * @return           comparison result
- */
-static int cmp_ranlib_64(void const *const a, void const *const b, size_t size)
-{
-	(void)size;
-	struct ranlib_64 const *const ranlib_a = a;
-	struct ranlib_64 const *const ranlib_b = b;
-
-	return (ranlib_a->ran_off > ranlib_b->ran_off) -
-	       (ranlib_a->ran_off < ranlib_b->ran_off);
-}
-
-/**
  * AR object information definition
  */
 struct ar_info
@@ -370,9 +336,6 @@ struct ar_info
 
 	uint8_t const *obj; /**< AR object buffer */
 	size_t size;        /**< AR object size   */
-
-	uint8_t const *ranlibs; /**< AR object ranlibs buffer */
-	size_t ranlibs_size;    /**< AR object ranlibs size   */
 };
 
 /**
@@ -383,15 +346,15 @@ struct ar_info
  * @param root   [in] Specify if we peek the root header
  * @return            0 on success, -1 or error code otherwise
  */
-static int ar_info_peek(struct obj const *const obj, size_t off,
-                        struct ar_info *const info, bool const root)
+static int ar_info_peek(struct obj const *const obj, size_t *off,
+                        struct ar_info *const info)
 {
 	struct ar_hdr hdr_cpy;
 
 	/* Peek AR header */
-	struct ar_hdr const *const hdr = obj_peek(obj, off, sizeof *hdr);
-	if (hdr == NULL) return OFILE_E_INVAL_ARHDR;
-	off += sizeof *hdr;
+	struct ar_hdr const *const hdr = obj_peek(obj, *off, sizeof *hdr);
+	if (hdr == NULL) return OFILE_E_NO_ARHDR;
+	*off += sizeof *hdr;
 
 	/* Check for header consistency (must be "`\n") */
 	if (ft_strncmp(ARFMAG, hdr->ar_fmag, sizeof(ARFMAG) - 1) != 0)
@@ -408,11 +371,8 @@ static int ar_info_peek(struct obj const *const obj, size_t off,
 	long long int const olen = ft_atoll(hdr_cpy.ar_size);
 	if (olen <= 0) return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
 	info->size = (size_t)olen;
-	info->obj = obj_peek(obj, off, info->size);
+	info->obj  = obj_peek(obj, *off, info->size);
 	if (info->obj == NULL) return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
-
-	size_t obj_off = off;
-	off += info->size;
 
 	/* We don't care about the date, which is the field next to `name`,
 	 * insert null terminated.. */
@@ -421,15 +381,14 @@ static int ar_info_peek(struct obj const *const obj, size_t off,
 	/* Short name (>= 15) */
 	if (ft_strncmp(AR_EFMT1, hdr_cpy.ar_name, sizeof(AR_EFMT1) - 1) != 0) {
 
+		/* Skip leading spaces */
+		char *spaces = ft_strchr(hdr_cpy.ar_name, ' ');
+		if (spaces) *spaces = '\0';
+
 		/* When `ar_name` does not begin with "#1/" the name is in the
 		 * ar_name filed and NULL terminated */
-		info->name = hdr->ar_name;
-		info->name_len = ft_strnlen(info->name, sizeof hdr->ar_name);
-
-		/* Name must be null terminated so size cannot be same of the
-		 * `ar_name` field */
-		if (info->name_len >= sizeof hdr->ar_name)
-			return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
+		info->name     = hdr->ar_name;
+		info->name_len = ft_strnlen(hdr_cpy.ar_name, sizeof hdr->ar_name);
 
 	} else { /* Long name (> 15) */
 
@@ -440,31 +399,13 @@ static int ar_info_peek(struct obj const *const obj, size_t off,
 			return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
 
 		info->name_len = (size_t)nlen;
-		info->name = obj_peek(obj, obj_off, info->name_len);
+		info->name     = obj_peek(obj, *off, info->name_len);
 		if (info->name == NULL) return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
 
-		obj_off += info->name_len;
-		info->obj += info->name_len;
+		*off       += info->name_len;
+		info->obj  += info->name_len;
 		info->size -= info->name_len;
 	}
-
-	if (root) {
-		uint32_t const *const size = obj_peek(obj, obj_off, sizeof *size);
-		if (size == NULL) return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
-
-		info->ranlibs_size = (size_t)*size;
-		obj_off += sizeof *size;
-
-		info->ranlibs = obj_peek(obj, obj_off, info->ranlibs_size);
-		if (info->ranlibs == NULL)
-			return (errno = EBADMACHO), OFILE_E_INVAL_ARHDR;
-		obj_off += info->ranlibs_size;
-
-		return obj_off >= off ? ((errno = EBADMACHO), OFILE_E_INVAL_ARHDR) : 0;
-	}
-
-	info->ranlibs_size = 0;
-	info->ranlibs = NULL;
 
 	return 0;
 }
@@ -487,69 +428,32 @@ static int ar_load(struct obj const *const obj,
 
 	struct ar_info info;
 
-	int err = ar_info_peek(obj, off, &info, true);
+	/* Peek the first archive object */
+	int err = ar_info_peek(obj, &off, &info);
 	if (err) return err;
 
-	if (ft_strncmp(info.name, SYMDEF, info.name_len) == 0 ||
-	    ft_strncmp(info.name, SYMDEF_SORTED, info.name_len) == 0) {
+	/* First object got a magic name, check for it */
+	if (ft_strncmp(info.name, SYMDEF, info.name_len) != 0 &&
+	    ft_strncmp(info.name, SYMDEF_SORTED, info.name_len) != 0 &&
+	    ft_strncmp(info.name, SYMDEF_64, info.name_len) != 0 &&
+	    ft_strncmp(info.name, SYMDEF_64_SORTED, info.name_len) != 0)
+		return (errno = EBADMACHO), OFILE_E_INVAL_ARCHOBJ;
 
-		struct ranlib *const ranlibs = malloc(info.ranlibs_size);
-		if (ranlibs == NULL) return -1;
-		size_t const nranlibs = info.ranlibs_size / sizeof *ranlibs;
+	/* Loop though AR object and load each one */
+	while (off += info.size, (err = ar_info_peek(obj, &off, &info)) == 0) {
+		struct obj new_obj = {
+			.ofile = OFILE_AR, .target = obj->target,
+			.buf = info.obj, .size = info.size,
+			.name = info.name, .name_len = info.name_len
+		};
 
-		ft_memcpy(ranlibs, info.ranlibs, info.ranlibs_size);
-		ft_qsort(ranlibs, nranlibs, sizeof *ranlibs, cmp_ranlib);
-
-		for (size_t i = 0; i < nranlibs; ++i) {
-			struct ar_info ran_info;
-			size_t const ran_off = ranlibs[i].ran_off;
-
-			err = ar_info_peek(obj, ran_off, &ran_info, false);
-			if (err) break;
-
-			struct obj new_obj = {
-				.ofile = OFILE_AR, .target = obj->target,
-				.buf = ran_info.obj, .size = ran_info.size,
-				.name = ran_info.name, .name_len = ran_info.name_len
-			};
-
-			err = load(&new_obj, collector, user);
-			if (err) break;
-		}
-
-		free(ranlibs);
-	}
-	else if (ft_strncmp(info.name, SYMDEF_64, info.name_len) == 0 ||
-	         ft_strncmp(info.name, SYMDEF_64_SORTED, info.name_len) == 0) {
-
-		struct ranlib_64 *const ranlibs = malloc(info.ranlibs_size);
-		if (ranlibs == NULL) return -1;
-		size_t const nranlibs = info.ranlibs_size / sizeof *ranlibs;
-
-		ft_memcpy(ranlibs, info.ranlibs, info.ranlibs_size);
-		ft_qsort(ranlibs, nranlibs, sizeof *ranlibs, cmp_ranlib_64);
-
-		for (size_t i = 0; i < nranlibs; ++i) {
-			struct ar_info ran_info;
-			size_t const ran_off = ranlibs[i].ran_off;
-
-			err = ar_info_peek(obj, ran_off, &ran_info, false);
-			if (err) break;
-
-			struct obj new_obj = {
-				.ofile = OFILE_AR, .target = obj->target,
-				.buf = ran_info.obj, .size = ran_info.size,
-				.name = ran_info.name, .name_len = ran_info.name_len
-			};
-
-			err = load(&new_obj, collector, user);
-			if (err) break;
-		}
-
-		free(ranlibs);
+		/* Load new object */
+		err = load(&new_obj, collector, user);
+		if (err) return err;
 	}
 
-	return err;
+	/* OFILE_E_NO_ARHDR from ar_info_peek means their is no more object -> 0 */
+	return err == OFILE_E_NO_ARHDR ? 0 : err;
 }
 
 
@@ -571,12 +475,12 @@ static int load(struct obj *const obj,
 		{ MH_CIGAM,     false, true,  mh_load  },
 		{ MH_MAGIC_64,  true,  false, mh_load  },
 		{ MH_CIGAM_64,  true,  true,  mh_load  },
+		{ AR_MAGIC,     false, false, ar_load  },
+		{ AR_CIGAM,     false, true,  ar_load  },
 		{ FAT_MAGIC,    false, false, fat_load },
 		{ FAT_CIGAM,    false, true,  fat_load },
 		{ FAT_MAGIC_64, true,  false, fat_load },
 		{ FAT_CIGAM_64, true,  true,  fat_load },
-		{ AR_MAGIC,     false, false, ar_load  },
-		{ AR_CIGAM,     false, true,  ar_load  },
 	};
 
 	unsigned i;
@@ -586,8 +490,12 @@ static int load(struct obj *const obj,
 	for (i = 0; i < COUNT_OF(loaders) &&
 				loaders[i].magic != *(uint32_t *)obj->buf; ++i)
 
-		/* When loading from FAT or AR, only expect MH */
-		if (obj->ofile > OFILE_MH && i == 3)
+		/* When loading from AR, only expect MH */
+		if (obj->ofile == OFILE_AR && i == 3)
+			return (errno = EBADMACHO), OFILE_E_INVAL_MAGIC;
+
+		/* When loading from FAT, only expect MH */
+		else if (obj->ofile == OFILE_AR && i == 5)
 			return (errno = EBADMACHO), OFILE_E_INVAL_MAGIC;
 
 	/* Unable to find proper loader for this magic */

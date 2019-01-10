@@ -143,9 +143,14 @@ static inline void syms_insert(struct nm_context *const ctx,
 
 			/* Compare two symbol, alphabetically by default,
 			 * numerically by address if the `n` option is active */
-			int const cmp = (ctx->flags & NM_OPT_n)
+			int cmp = (ctx->flags & NM_OPT_n)
 				? (syms[i].off > (*it)->off) - (syms[i].off < (*it)->off)
 				: ft_strcmp(syms[i].string, (*it)->string);
+
+			/* Prioritize undefined symbols */
+			if (!(ctx->flags & NM_OPT_n) && cmp == 0 &&
+			    ft_tolower(syms[i].type) == 'u')
+				cmp = -1;
 
 			/* Check if we get the right position
 			 * inverse comparison if the `r` option is active */
@@ -338,21 +343,22 @@ static void on_load(obj_t const o, NXArchInfo const *const arch_info,
                     void *user)
 {
 	struct nm_context *const ctx = user;
-	char const *name;
 	size_t name_len;
 
 	/* In case of archive sub object, name is non-null */
-	if ((name = obj_name(o, &name_len)))
-		ft_printf("\n%s(%.*s):\n", ctx->bin, (unsigned)name_len, name);
+	char const *const name = obj_name(o, &name_len);
 
 	/* In case of FAT file and multiple arch, also print arch info name */
-	else if (obj_ofile(o) == OFILE_FAT && obj_target(o) == OFILE_NX_ALL)
-		ft_printf("\n%s (for architecture %s):\n",
-		          ctx->bin, arch_info ? arch_info->name : "none");
+	bool const fat = obj_ofile(o) != OFILE_MH && obj_target(o) == OFILE_NX_ALL;
 
-	/* In any other case, only print info id there is more than one argument */
-	else if (ctx->nfiles > 1)
-		ft_printf("\n%s:\n", ctx->bin);
+	if (name || fat) {
+		ft_printf("\n%s", ctx->bin);
+		if (name) ft_printf("(%.*s)", (unsigned) name_len, name);
+		if (fat)  ft_printf(" (for architecture %s)",
+			                arch_info ? arch_info->name : "none");
+		ft_printf(":\n");
+	}
+	else if (ctx->nfiles > 1) ft_printf("\n%s:\n", ctx->bin);
 
 	/* Reset section saves */
 	ctx->nsects = 0;
