@@ -130,6 +130,9 @@ static inline bool syms_insert(struct nm_context *const ctx,
 	if ((ctx->flags & NM_OPT_U) && sym->type != 'U')
 		return false;
 
+	if (!sym->string)
+		sym->string = "bad string index";
+
 	return true;
 }
 
