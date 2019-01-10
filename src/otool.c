@@ -34,7 +34,7 @@ static inline void dump(const char *const text, uint64_t const off,
 	}
 }
 
-static int segment_collect(obj_t const o, size_t off, void *const user)
+static int segment_collect(t_obj const o, size_t off, void *const user)
 {
 	(void)user;
 	struct segment_command const *const seg = obj_peek(o, off, sizeof *seg);
@@ -79,7 +79,7 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 	return 0;
 }
 
-static int segment_64_collect(obj_t const o, size_t off, void *const user)
+static int segment_64_collect(t_obj const o, size_t off, void *const user)
 {
 	(void)user;
 	struct segment_command_64 const *const seg =
@@ -124,7 +124,7 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 }
 
 /* otool collectors */
-static struct ofile_collector const otool_collector = {
+static struct s_ofile_collector const otool_collector = {
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SEGMENT]    = segment_collect,

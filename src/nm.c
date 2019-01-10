@@ -158,7 +158,7 @@ static int syms_s_cmp(const void *a, const void *b, size_t n)
 
 }
 
-static int symtab_collect(obj_t const o, size_t const off, void *const user)
+static int symtab_collect(t_obj const o, size_t const off, void *const user)
 {
 	struct nm_context *const ctx = user;
 
@@ -276,7 +276,7 @@ static int sects_update(struct nm_context *const ctx,
 	return 0;
 }
 
-static int segment_collect(obj_t const o, size_t off, void *const user)
+static int segment_collect(t_obj const o, size_t off, void *const user)
 {
 	struct nm_context *const ctx = user;
 
@@ -305,7 +305,7 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 	return err;
 }
 
-static int segment_64_collect(obj_t const o, size_t off, void *const user)
+static int segment_64_collect(t_obj const o, size_t off, void *const user)
 {
 	struct nm_context *const ctx = user;
 
@@ -334,7 +334,7 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 	return err;
 }
 
-static void on_load(obj_t const o, NXArchInfo const *const arch_info,
+static void on_load(t_obj const o, NXArchInfo const *const arch_info,
                     void *user)
 {
 	struct nm_context *const ctx = user;
@@ -361,7 +361,7 @@ static void on_load(obj_t const o, NXArchInfo const *const arch_info,
 }
 
 /* nm collectors */
-static const struct ofile_collector nm_collector = {
+static const struct s_ofile_collector nm_collector = {
 	.load = on_load,
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
