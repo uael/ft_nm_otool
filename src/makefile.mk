@@ -1,8 +1,8 @@
 OFILE_OBJ = src/ofile.o \
-            src/ofile_error.o \
-            src/ofile_swap.o \
-            src/ofile_get.o \
-            src/ofile_mh.o
+            src/ofile_misc.o \
+            src/ofile_mh.o \
+            src/ofile_fat.o \
+            src/ofile_ar.o
 
 NM_OBJ += $(OFILE_OBJ) src/nm.o
 

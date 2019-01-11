@@ -42,7 +42,7 @@ static int segment_collect(t_obj const o, size_t off, void *const user)
 	if (seg == NULL)
 		return -1;
 
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
+	if ((seg->cmd == LC_SEGMENT_64) != o->m64)
 		return (errno = EBADARCH), -1;
 
 	/* Only dump section's of __TEXT segment */
@@ -86,7 +86,7 @@ static int segment_64_collect(t_obj const o, size_t off, void *const user)
 		obj_peek(o, off, sizeof *seg);
 	if (seg == NULL) return -1;
 
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
+	if ((seg->cmd == LC_SEGMENT_64) != o->m64)
 		return (errno = EBADARCH), -1;
 
 	/* Only dump section's of __TEXT segment */

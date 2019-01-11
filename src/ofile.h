@@ -73,15 +73,9 @@ enum					e_ofile_e
 };
 
 char const				*ofile_etoa(int err);
-
 uint16_t				obj_swap16(t_obj obj, uint16_t u);
 uint32_t				obj_swap32(t_obj obj, uint32_t u);
 uint64_t				obj_swap64(t_obj obj, uint64_t u);
-
-bool					obj_ism64(t_obj obj);
-enum e_ofile			obj_ofile(t_obj obj);
-NXArchInfo const		*obj_target(t_obj obj);
-char const				*obj_name(t_obj obj, size_t *out_len);
 const void				*obj_peek(t_obj obj, size_t off, size_t len);
 
 typedef int				(t_ofile_collector)(t_obj obj, size_t off, void *user);

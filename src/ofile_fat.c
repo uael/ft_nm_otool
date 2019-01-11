@@ -12,6 +12,8 @@
 
 #include "ofile.h"
 
+#include <ft/string.h>
+
 #include <errno.h>
 
 static size_t const	g_sizes[] = {
@@ -19,9 +21,8 @@ static size_t const	g_sizes[] = {
 	[true] = sizeof(struct fat_arch_64)
 };
 
-static NXArchInfo const	*arch_info(struct s_obj const *const obj,
-							uint32_t i, uint32_t nfat_arch,
-							void const *fat_archs)
+static NXArchInfo const	*fat_arch(struct s_obj const *const obj,
+							void const *fat_archs, uint32_t i)
 {
 	struct fat_arch const	*arch;
 	NXArchInfo const		*info;
@@ -40,19 +41,19 @@ static NXArchInfo const	*arch_info(struct s_obj const *const obj,
 	return (info);
 }
 
-static int				target_update(struct s_obj const *const obj,
-							NXArchInfo const **target, uint32_t nfat_arch,
-							void const *fat_archs)
+static int				fat_target(struct s_obj const *const obj,
+							NXArchInfo const **target, void const *fat_archs,
+							uint32_t nfat_arch)
 {
-
-	bool		find;
-	uint32_t	i;
+	NXArchInfo const	*info;
+	bool				find;
+	uint32_t			i;
 
 	i = 0;
 	find = false;
 	while (i < nfat_arch)
 	{
-		info = arch_info(obj, i, nfat_arch, fat_archs);
+		info = fat_arch(obj, fat_archs, i);
 		if (info == NULL)
 			return (OFILE_E_INVAL_ARCHINFO);
 		if ((*target)->cputype == info->cputype
@@ -67,61 +68,60 @@ static int				target_update(struct s_obj const *const obj,
 	return (0);
 }
 
-static int				collect(struct s_obj const *const obj,
-							struct s_ofile_collector const *const collector,
-							void *const user)
+static int				fat_object(struct s_obj const *const obj,
+							void const *fat_archs, uint32_t i,
+							struct s_obj *new_obj)
 {
-	uint64_t arch_off, arch_size;
-	struct s_obj new_obj = { .target = target, .ofile = OFILE_FAT };
+	struct fat_arch_64 const	*arch_64;
+	struct fat_arch const		*arch;
+	uint64_t					arch_off;
+	uint64_t					arch_size;
+
 	if (obj->m64)
 	{
-		struct fat_arch_64 const *const arch =
-			(struct fat_arch_64 *)fat_archs + i;
-		arch_off = obj_swap64(obj, arch->offset);
-		arch_size = obj_swap64(obj, arch->size);
+		arch_64 = (struct fat_arch_64 *)fat_archs + i;
+		arch_off = obj_swap64(obj, arch_64->offset);
+		arch_size = obj_swap64(obj, arch_64->size);
 	}
 	else
 	{
-		struct fat_arch const *const arch =
-			(struct fat_arch *)fat_archs + i;
+		arch = (struct fat_arch *)fat_archs + i;
 		arch_off = obj_swap32(obj, arch->offset);
 		arch_size = obj_swap32(obj, arch->size);
 	}
-	new_obj.size = arch_size;
-	if ((new_obj.buf = obj_peek(obj, arch_off, arch_size)) == NULL)
+	new_obj->size = arch_size;
+	if ((new_obj->buf = obj_peek(obj, arch_off, arch_size)) == NULL)
 		return (OFILE_E_INVAL_ARCHINFO);
-	int err;
-	if ((err = load(&new_obj, collector, user)))
-		return (err);
-	++i;
+	return (0);
 }
 
 int						fat_load(struct s_obj const *const obj,
 							struct s_ofile_collector const *const collector,
 							void *const user)
 {
-	struct fat_header const	*const header = obj_peek(obj, 0, sizeof *header);
-	NXArchInfo const		*target;
-	uint32_t				nfat_arch;
-	void const				*fat_archs;
-	int						err;
+	struct fat_header const *const	header = obj_peek(obj, 0, sizeof(*header));
+	struct s_obj					new_obj;
+	uint32_t						idx[2];
+	void const						*fat_archs;
+	int								err;
 
 	if (header == NULL)
 		return (OFILE_E_INVAL_FATHDR);
-	target = obj->target != OFILE_NX_HOST
+	ft_memset(&new_obj, 0, sizeof(struct s_obj));
+	new_obj.target = obj->target != OFILE_NX_HOST
 		? obj->target : NXGetArchInfoFromName("x86_64");
-	nfat_arch = obj_swap32(obj, header->nfat_arch);
-	fat_archs = obj_peek(obj, sizeof *header, g_sizes[obj->m64] * nfat_arch);
+	idx[0] = obj_swap32(obj, header->nfat_arch);
+	fat_archs = obj_peek(obj, sizeof(*header), g_sizes[obj->m64] * idx[0]);
 	if (fat_archs == NULL)
 		return (OFILE_E_INVAL_FATARCH);
-	if (target != OFILE_NX_ALL
-		&& (err = target_update(obj, &target, nfat_arch, fat_archs)))
+	if (new_obj.target != OFILE_NX_ALL
+		&& (err = fat_target(obj, &new_obj.target, fat_archs, idx[0])))
 		return (err);
-
-	uint32_t i;
-
-	i = 0;
-	while (i < nfat_arch)
-		collect(obj, collector, user);
+	new_obj.ofile = OFILE_FAT;
+	idx[1] = 0;
+	while (idx[1] < idx[0])
+		if ((err = fat_object(obj, fat_archs, idx[1]++, &new_obj))
+			|| (err = load(&new_obj, collector, user)))
+			return (err);
 	return (0);
 }

@@ -32,7 +32,7 @@ static int			collect(uint32_t ncmds, struct s_obj const *obj,
 	off = g_header_sizes[obj->m64];
 	while (ncmds-- && err == 0)
 	{
-		if ((lc = obj_peek(obj, off, sizeof *lc)) == NULL)
+		if ((lc = obj_peek(obj, off, sizeof(*lc))) == NULL)
 			return (OFILE_E_INVAL_LC);
 		cmd = obj_swap32(obj, lc->cmd);
 		if (cmd < collector->ncollector && collector->collectors[cmd])
@@ -46,8 +46,8 @@ int					mh_load(struct s_obj const *obj,
 						struct s_ofile_collector const *const collector,
 						void *const user)
 {
-	struct mach_header const	*const hdr = obj_peek(obj, 0, sizeof *hdr);
-	NXArchInfo const			*arch_info;
+	struct mach_header const *const	hdr = obj_peek(obj, 0, sizeof(*hdr));
+	NXArchInfo const				*arch_info;
 
 	if (hdr == NULL)
 		return (OFILE_E_INVAL_MHHDR);

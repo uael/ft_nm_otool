@@ -184,7 +184,7 @@ static int symtab_collect(t_obj const o, size_t const off, void *const user)
 	};
 
 	/* Peek the nlist structure array */
-	void const *const nls = obj_peek(o, soff, nl_sizes[obj_ism64(o)] * nsyms);
+	void const *const nls = obj_peek(o, soff, nl_sizes[o->m64] * nsyms);
 	if (nls == NULL) return NM_E_INVAL_NLIST;
 
 	struct sym syms[nsyms];
@@ -199,7 +199,7 @@ static int symtab_collect(t_obj const o, size_t const off, void *const user)
 		uint16_t desc;
 		uint8_t type, sect;
 
-		if (obj_ism64(o)) {
+		if (o->m64) {
 			struct nlist_64 const *const nl = (struct nlist_64 *)nls + i;
 
 			value = obj_swap64(o, nl->n_value);
@@ -236,7 +236,7 @@ static int symtab_collect(t_obj const o, size_t const off, void *const user)
 		ft_qsort(syms, real_nsyms, sizeof *syms,
 		         (ctx->flags & NM_OPT_n) ? syms_n_cmp : syms_s_cmp);
 
-	int const padding = obj_ism64(o) ? 16 : 8;
+	int const padding = o->m64 ? 16 : 8;
 
 	/* Everything is done here (collect and sort), just dump.. */
 	for (uint32_t i = 0; i < real_nsyms; ++i) {
@@ -285,7 +285,7 @@ static int segment_collect(t_obj const o, size_t off, void *const user)
 	if (seg == NULL) return NM_E_INVAL_SEGMENT;
 
 	/* Check for architecture miss-match */
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
+	if ((seg->cmd == LC_SEGMENT_64) != o->m64)
 		return (errno = EBADARCH), NM_E_INVAL_ARCH;
 
 	off += sizeof *seg;
@@ -314,7 +314,7 @@ static int segment_64_collect(t_obj const o, size_t off, void *const user)
 	if (seg == NULL) return NM_E_INVAL_SEGMENT;
 
 	/* Check for architecture miss-match */
-	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
+	if ((seg->cmd == LC_SEGMENT_64) != o->m64)
 		return (errno = EBADARCH), NM_E_INVAL_ARCH;
 
 	off += sizeof *seg;
@@ -339,16 +339,18 @@ static void on_load(t_obj const o, NXArchInfo const *const arch_info,
 {
 	struct nm_context *const ctx = user;
 	size_t name_len;
+	char const *name;
 
 	/* In case of archive sub object, name is non-null */
-	char const *const name = obj_name(o, &name_len);
+	name_len = o->name_len;
+	name = o->name;
 
 	/* In case of FAT file and multiple arch, also print arch info name */
-	bool const fat = obj_ofile(o) != OFILE_MH && obj_target(o) == OFILE_NX_ALL;
+	bool const fat = o->ofile != OFILE_MH && o->target == OFILE_NX_ALL;
 
 	if (name || fat) {
 		ft_printf("\n%s", ctx->bin);
-		if (name) ft_printf("(%.*s)", (unsigned) name_len, name);
+		if (name) ft_printf("(%.*s)", (unsigned)name_len, name);
 		if (fat)  ft_printf(" (for architecture %s)",
 			                arch_info ? arch_info->name : "none");
 		ft_printf(":\n");
