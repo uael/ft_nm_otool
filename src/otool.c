@@ -13,6 +13,7 @@
 #include "ofile.h"
 
 #include <ft/ctype.h>
+#include <ft/opts.h>
 #include <ft/stdio.h>
 #include <ft/stdlib.h>
 
@@ -61,9 +62,9 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 		if (ft_strcmp("__TEXT", sect->segname) == 0 &&
 		    ft_strcmp("__text", sect->sectname) == 0) {
 
-			uint64_t const offset = obj_swap32(o, sect->offset);
-			uint64_t const addr   = obj_swap32(o, sect->addr);
-			uint64_t const size   = obj_swap32(o, sect->size);
+			uint32_t const offset = obj_swap32(o, sect->offset);
+			uint32_t const addr   = obj_swap32(o, sect->addr);
+			uint32_t const size   = obj_swap32(o, sect->size);
 
 			char const *const text = obj_peek(o, offset, size);
 			if (text == NULL) return -1;
@@ -123,8 +124,28 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 	return 0;
 }
 
+static void on_load(obj_t const o, NXArchInfo const *const arch_info,
+					void *user)
+{
+	char const *ctx = user;
+	size_t name_len;
+
+	/* In case of archive sub object, name is non-null */
+	char const *const name = obj_name(o, &name_len);
+
+	/* In case of FAT file and multiple arch, also print arch info name */
+	bool const fat = obj_ofile(o) != OFILE_MH && obj_target(o) == OFILE_NX_ALL;
+
+	ft_printf("\n%s", ctx);
+	if (name) ft_printf("(%.*s)", (unsigned) name_len, name);
+	if (fat)  ft_printf(" (for architecture %s)",
+						arch_info ? arch_info->name : "none");
+	ft_printf(":\n");
+}
+
 /* otool collectors */
 static struct ofile_collector const otool_collector = {
+	.load = on_load,
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SEGMENT]    = segment_collect,
@@ -136,23 +157,56 @@ int main(int ac, char *av[])
 {
 	char const *const exe = *av;
 	int ret = EXIT_SUCCESS;
+	char *ctx;
+	char const *arch = NULL;
+	t_opt const opts[] = {
+		{ FT_OPT_STRING, 'A', "arch", &arch,
+			"architecture(s) from a Mach-O file to dump", 0 },
+		{ FT_OPT_END, 0, 0, 0, 0, 0 }
+	};
+
+	int i = 1;
+
+	/* Parse options */
+	if (ft_optparse(opts, &i, ac, av)) {
+
+		/* Got an error while parsing options..
+		 * show usage */
+		ft_optusage(opts, av[0],
+					"[file(s)]",
+					"Hexdump [file(s)] (a.out by default).");
+
+		return EXIT_FAILURE;
+	}
+
+	NXArchInfo const *target = NULL;
+
+	if (arch == NULL) target = OFILE_NX_HOST;
+	else if (ft_strcmp("all", arch) != 0 &&
+			 (target = NXGetArchInfoFromName(arch)) == NULL) {
+
+		/* Dump error, then abort.. */
+		ft_fprintf(g_stderr, "%s: Unknown architecture named '%s'\n",
+				   exe, arch);
+
+		return EXIT_FAILURE;
+	}
 
 	/* Default file if none */
 	if (ac < 2) av[ac++] = "a.out";
 
 	/* Loop though argument and dump each one */
-	for (int i = 1; i < ac; ++i) {
+	for (; i < ac; ++i) {
 
-		/* Indicate filename before hexdump */
-		ft_printf("%s:\n", av[i]);
+		/* context is just filename */
+		ctx = av[i];
 
 		/* Collect Mach-o object using otool collectors */
-		int const err = ofile_collect(av[i], OFILE_NX_HOST,
-		                              &otool_collector, NULL);
+		int const err = ofile_collect(ctx, target, &otool_collector, ctx);
 		if (err) {
 
 			/* Dump error, then continue.. */
-			ft_fprintf(g_stderr, "%s: %s: %s\n", exe, av[i], ofile_etoa(err));
+			ft_fprintf(g_stderr, "%s: %s: %s\n", exe, ctx, ofile_etoa(err));
 			ret = EXIT_FAILURE;
 		}
 	}
