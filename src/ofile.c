@@ -211,8 +211,12 @@ static inline int mh_load(struct obj const *obj,
 	     ncmds-- && err == 0;) {
 
 		/* Peek the load command structure */
-		struct load_command const *const lc = obj_peek(obj, off, sizeof *lc);
-		if (lc == NULL) return OFILE_E_INVAL_LC;
+		struct load_command const *lc = obj_peek(obj, off, sizeof *lc);
+		if (lc == NULL)
+			return OFILE_E_INVAL_LC;
+		/* Check for LC size */
+		if (obj_peek(obj, off, obj_swap32(obj, lc->cmdsize)) == NULL)
+			return OFILE_E_INVAL_LC;
 
 		uint32_t const cmd = obj_swap32(obj, lc->cmd);
 

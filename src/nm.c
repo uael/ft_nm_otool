@@ -141,8 +141,9 @@ static int syms_n_cmp(const void *a, const void *b, size_t n)
 	(void)n;
 	struct sym const *const sym_a = a;
 	struct sym const *const sym_b = b;
+	int const cmp = (sym_a->off > sym_b->off) - (sym_a->off < sym_b->off);
 
-	return (sym_a->off > sym_b->off) - (sym_a->off < sym_b->off);
+	return cmp == 0 ? ft_strcmp(sym_a->string, sym_b->string) : cmp;
 }
 
 static int syms_s_cmp(const void *a, const void *b, size_t n)
@@ -153,9 +154,8 @@ static int syms_s_cmp(const void *a, const void *b, size_t n)
 
 	int const cmp = ft_strcmp(sym_a->string, sym_b->string);
 
-	/* Prioritize undefined symbols */
-	return cmp == 0 ? syms_n_cmp(a, b, n) : cmp;
-
+	return cmp == 0
+	       ? (sym_a->off > sym_b->off) - (sym_a->off < sym_b->off) : cmp;
 }
 
 static int symtab_collect(obj_t const o, size_t const off, void *const user)
