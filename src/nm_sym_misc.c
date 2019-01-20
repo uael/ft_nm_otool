@@ -60,9 +60,11 @@ int					sym_n_cmp(const void *a, const void *b, size_t n)
 {
 	struct s_sym const *const	sym_a = a;
 	struct s_sym const *const	sym_b = b;
+	int							cmp;
 
 	(void)n;
-	return ((sym_a->off > sym_b->off) - (sym_a->off < sym_b->off));
+	cmp = (sym_a->off > sym_b->off) - (sym_a->off < sym_b->off);
+	return (cmp == 0 ? ft_strcmp(sym_a->string, sym_b->string) : cmp);
 }
 
 int					sym_s_cmp(const void *a, const void *b, size_t n)
@@ -72,5 +74,7 @@ int					sym_s_cmp(const void *a, const void *b, size_t n)
 	int const					cmp = ft_strcmp(sym_a->string, sym_b->string);
 
 	(void)n;
-	return (cmp == 0 ? sym_n_cmp(a, b, n) : cmp);
+	return (cmp == 0
+		? ((sym_a->off > sym_b->off) - (sym_a->off < sym_b->off))
+		: cmp);
 }

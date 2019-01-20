@@ -34,6 +34,8 @@ static int			collect(uint32_t ncmds, struct s_obj const *obj,
 	{
 		if ((lc = obj_peek(obj, off, sizeof(*lc))) == NULL)
 			return (OFILE_E_INVAL_LC);
+		if ((lc = obj_peek(obj, off, obj_swap32(obj, lc->cmdsize))) == NULL)
+			return (OFILE_E_INVAL_LC);
 		cmd = obj_swap32(obj, lc->cmd);
 		if (cmd < collector->ncollector && collector->collectors[cmd])
 			err = collector->collectors[cmd](obj, off, user);

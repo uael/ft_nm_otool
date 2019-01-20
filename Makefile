@@ -107,12 +107,14 @@ $(TARGET_LIB): | $(DEPS) $(MAKE_DEPS)
 	@mkdir -p $(dir $@)
 	@echo "  AR      $(notdir $@)"
 	$(V)$(AR) rcs $@ $^
+	$(V)ln -sf $@ ./$(notdir $@)
 
 $(TARGET_BIN): | $(DEPS) $(MAKE_DEPS)
 	@mkdir -p $(dir $@)
 	@echo "  LD      $(notdir $@)"
 	$(V)$(LD) $^ $(LDFLAGS) $(addprefix -L,$(LDDIRS)) \
 	  $(addprefix -l,$(LDLIBS)) -o $@
+	$(V)ln -sf $@ ./$(notdir $@)
 
 clean:
 	@rm -rf $(BUILD_DIR)
