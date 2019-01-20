@@ -16,6 +16,7 @@ LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_atol.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_atoll.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_itoa.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_qsort.o
+LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_realpath.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_strerror.o
 LIBFT_OBJ += $(LIBFT_ROOT_DIR)/src/stdlib/ft_wctomb.o
 
