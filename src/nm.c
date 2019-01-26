@@ -106,6 +106,7 @@ static int								nm_parse_opts(int ac, char *av[],
 
 	i = 1;
 	*flags = 0;
+	arch = NULL;
 	return (ft_optparse(opts, &i, ac, av)
 		? -1 : nm_parse_arch(i, av[0], arch, target));
 }

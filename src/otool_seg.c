@@ -49,8 +49,6 @@ int					segment_collect(t_obj const o, size_t off, void *const user)
 
 	if (se == NULL || (se->cmd == LC_SEGMENT_64) != o->m64)
 		return (((errno = EBADARCH) & 0) - 1);
-	if (ft_strcmp("__TEXT", se->segname) != 0)
-		return (0);
 	off += sizeof(*se) - sizeof(*sect);
 	nsects = obj_swap32(o, se->nsects);
 	while (nsects--)
@@ -79,8 +77,6 @@ int					segment_64_collect(t_obj const o, size_t off,
 
 	if (se == NULL || (se->cmd == LC_SEGMENT_64) != o->m64)
 		return (((errno = EBADARCH) & 0) - 1);
-	if (ft_strcmp("__TEXT", se->segname) != 0)
-		return (0);
 	off += sizeof(*se) - sizeof(*sect);
 	nsects = obj_swap32(o, se->nsects);
 	while (nsects--)

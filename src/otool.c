@@ -28,7 +28,7 @@ static void								on_load(t_obj const o,
 	bool		fat;
 
 	fat = o->ofile != OFILE_MH && o->target == OFILE_NX_ALL;
-	ft_printf("\n%s", ctx);
+	ft_printf("%s", ctx);
 	if (o->name)
 		ft_printf("(%.*s)", (unsigned)o->name_len, o->name);
 	if (fat)
@@ -72,6 +72,7 @@ static int								otool_parse_opts(int ac, char *av[],
 		{ FT_OPT_END, 0, 0, 0, 0, 0 }};
 
 	i = 1;
+	arch = NULL;
 	return (ft_optparse(opts, &i, ac, av)
 		? -1 : otool_parse_arch(i, av[0], arch, target));
 }
