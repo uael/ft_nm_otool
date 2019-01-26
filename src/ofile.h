@@ -48,6 +48,7 @@ struct					s_obj
 {
 	enum e_ofile		ofile;
 	NXArchInfo const	*target;
+	NXArchInfo const	*arch_info;
 	uint8_t const		*buf;
 	size_t				size;
 	char const			*name;

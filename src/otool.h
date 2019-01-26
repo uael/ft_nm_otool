@@ -15,6 +15,12 @@
 
 # include "ofile.h"
 
+struct			s_otool_context
+{
+	char const			*bin;
+	NXArchInfo const	*arch_info;
+};
+
 int				segment_collect(t_obj o, size_t off, void *user);
 int				segment_64_collect(t_obj o, size_t off, void *user);
 

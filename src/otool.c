@@ -24,17 +24,17 @@ static void								on_load(t_obj const o,
 											NXArchInfo const *const arch_info,
 											void *user)
 {
-	char const	*ctx = user;
-	bool		fat;
+	struct s_otool_context *const	ctx = user;
+	bool							fat;
 
 	if (o == NULL)
-		return ((void)ft_printf("Archive : %s\n", ctx));
+		return ((void)ft_printf("Archive : %s\n", ctx->bin));
 	fat = o->ofile != OFILE_MH && o->target == OFILE_NX_ALL;
-	ft_printf("%s", ctx);
+	ft_printf("%s", ctx->bin);
 	if (o->name)
 		ft_printf("(%.*s)", (unsigned)o->name_len, o->name);
 	if (fat)
-		ft_printf(" (for architecture %s)",
+		ft_printf(" (architecture %s)",
 			arch_info ? arch_info->name : "none");
 	ft_printf(":\n");
 }
@@ -81,11 +81,11 @@ static int								otool_parse_opts(int ac, char *av[],
 
 int										main(int ac, char *av[])
 {
-	char				*ctx;
-	NXArchInfo const	*target;
-	int					ret;
-	int					err;
-	int					i;
+	struct s_otool_context	ctx;
+	NXArchInfo const		*target;
+	int						ret;
+	int						err;
+	int						i;
 
 	target = NULL;
 	if ((i = otool_parse_opts(ac, av, &target)) < 0)
@@ -95,11 +95,11 @@ int										main(int ac, char *av[])
 	ret = EXIT_SUCCESS;
 	while (i < ac)
 	{
-		ctx = av[i++];
-		err = ofile_collect(ctx, target, &g_otool_collector, ctx);
-		if (err)
+		ctx.bin = av[i++];
+		if ((err = ofile_collect(ctx.bin, target, &g_otool_collector, &ctx)))
 		{
-			ft_fprintf(g_stderr, "%s: %s: %s\n", av[0], ctx, ofile_etoa(err));
+			ft_fprintf(g_stderr, "%s: %s: %s\n",
+				av[0], ctx.bin, ofile_etoa(err));
 			ret = EXIT_FAILURE;
 		}
 	}

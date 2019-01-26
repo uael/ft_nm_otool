@@ -49,23 +49,24 @@ int					mh_load(struct s_obj const *obj,
 						void *const user)
 {
 	struct mach_header const *const	hdr = obj_peek(obj, 0, sizeof(*hdr));
-	NXArchInfo const				*arch_info;
+	struct s_obj					new_obj;
 
 	if (hdr == NULL)
 		return (OFILE_E_INVAL_MHHDR);
-	arch_info = NXGetArchInfoFromCpuType(
+	new_obj = *obj;
+	new_obj.arch_info = NXGetArchInfoFromCpuType(
 		(cpu_type_t)obj_swap32(obj, (uint32_t)hdr->cputype),
 		(cpu_subtype_t)obj_swap32(obj, (uint32_t)hdr->cpusubtype));
-	if (arch_info == NULL)
+	if (new_obj.arch_info == NULL)
 	{
 		errno = EBADMACHO;
 		return (OFILE_E_INVAL_ARCHINFO);
 	}
 	if (obj->target != NULL && obj->target != OFILE_NX_HOST
-		&& (obj->target->cputype != arch_info->cputype
-			|| obj->target->cpusubtype != arch_info->cpusubtype))
+		&& (obj->target->cputype != new_obj.arch_info->cputype
+			|| obj->target->cpusubtype != new_obj.arch_info->cpusubtype))
 		return (0);
 	if (collector->load)
-		collector->load(obj, arch_info, user);
-	return (collect(obj_swap32(obj, hdr->ncmds), obj, collector, user));
+		collector->load(&new_obj, new_obj.arch_info, user);
+	return (collect(obj_swap32(obj, hdr->ncmds), &new_obj, collector, user));
 }
