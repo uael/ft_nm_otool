@@ -122,3 +122,6 @@ fclean: clean
 	@rm -rf $(TARGET_LIB) $(TARGET_BIN)
 
 re: clean all
+
+norminette:
+	@norminette $(shell zsh -c "echo {libft,src}/**/**.[ch]")
