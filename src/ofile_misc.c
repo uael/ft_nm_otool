@@ -43,17 +43,31 @@ char const			*ofile_etoa(int const err)
 
 uint16_t			obj_swap16(struct s_obj const *const obj, uint16_t u)
 {
-	return (obj->le ? OSSwapConstInt16(u) : u);
+	return (obj->le ? ((uint16_t)
+		((((uint16_t)(u) & 0xff00) >> 8)
+		| (((uint16_t)(u) & 0x00ff) << 8))) : u);
 }
 
 uint32_t			obj_swap32(struct s_obj const *const obj, uint32_t const u)
 {
-	return (obj->le ? OSSwapConstInt32(u) : u);
+	return (obj->le ? ((uint32_t)
+		((((uint32_t)(u) & 0xff000000) >> 24)
+		| (((uint32_t)(u) & 0x00ff0000) >> 8)
+		| (((uint32_t)(u) & 0x0000ff00) << 8)
+		| (((uint32_t)(u) & 0x000000ff) << 24))) : u);
 }
 
 uint64_t			obj_swap64(struct s_obj const *const obj, uint64_t const u)
 {
-	return (obj->le ? OSSwapConstInt64(u) : u);
+	return (obj->le ? ((uint64_t)
+		((((uint64_t)(u) & 0xff00000000000000ULL) >> 56)
+		| (((uint64_t)(u) & 0x00ff000000000000ULL) >> 40)
+		| (((uint64_t)(u) & 0x0000ff0000000000ULL) >> 24)
+		| (((uint64_t)(u) & 0x000000ff00000000ULL) >> 8)
+		| (((uint64_t)(u) & 0x00000000ff000000ULL) << 8)
+		| (((uint64_t)(u) & 0x0000000000ff0000ULL) << 24)
+		| (((uint64_t)(u) & 0x000000000000ff00ULL) << 40)
+		| (((uint64_t)(u) & 0x00000000000000ffULL) << 56))) : u);
 }
 
 inline const void	*obj_peek(struct s_obj const *const obj, size_t const off,
