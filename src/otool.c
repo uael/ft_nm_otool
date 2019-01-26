@@ -27,6 +27,8 @@ static void								on_load(t_obj const o,
 	char const	*ctx = user;
 	bool		fat;
 
+	if (o == NULL)
+		return ((void)ft_printf("Archive : %s\n", ctx));
 	fat = o->ofile != OFILE_MH && o->target == OFILE_NX_ALL;
 	ft_printf("%s", ctx);
 	if (o->name)

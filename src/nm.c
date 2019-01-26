@@ -44,6 +44,8 @@ static void								on_load(t_obj const o,
 	struct s_nm_context *const	ctx = user;
 	bool						fat;
 
+	if (o == NULL)
+		return ;
 	fat = o->ofile != OFILE_MH && o->target == OFILE_NX_ALL;
 	if (o->name || fat)
 	{
