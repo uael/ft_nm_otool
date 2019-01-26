@@ -151,7 +151,7 @@ const void *obj_peek(obj_t obj, size_t off, size_t len);
 /**
  * Object file collector call-back type definition
  */
-typedef int ofile_collector_t(obj_t obj, size_t off, void *user);
+typedef int ofile_collector_t(obj_t, size_t, NXArchInfo const *, void *);
 
 /**
  * Object file collector definition
@@ -159,6 +159,7 @@ typedef int ofile_collector_t(obj_t obj, size_t off, void *user);
 struct ofile_collector
 {
 	void (*load)(obj_t obj, NXArchInfo const *arch_info, void *user);
+	void (*ar_load)(void *user);
 
 	size_t ncollector; /**< Actual max size of `collectors` field */
 	ofile_collector_t *const collectors[]; /**< Collectors array */

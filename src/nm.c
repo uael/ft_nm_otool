@@ -158,8 +158,10 @@ static int syms_s_cmp(const void *a, const void *b, size_t n)
 	       ? (sym_a->off > sym_b->off) - (sym_a->off < sym_b->off) : cmp;
 }
 
-static int symtab_collect(obj_t const o, size_t const off, void *const user)
+static int symtab_collect(obj_t const o, size_t const off,
+                          NXArchInfo const *arch_info, void *const user)
 {
+	(void)arch_info;
 	struct nm_context *const ctx = user;
 
 	/* Symtab before text section ? */
@@ -276,8 +278,10 @@ static int sects_update(struct nm_context *const ctx,
 	return 0;
 }
 
-static int segment_collect(obj_t const o, size_t off, void *const user)
+static int segment_collect(obj_t const o, size_t off,
+                           NXArchInfo const *arch_info, void *const user)
 {
+	(void)arch_info;
 	struct nm_context *const ctx = user;
 
 	/* Peek the segment structure */
@@ -305,8 +309,10 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 	return err;
 }
 
-static int segment_64_collect(obj_t const o, size_t off, void *const user)
+static int segment_64_collect(obj_t const o, size_t off,
+                              NXArchInfo const *arch_info, void *const user)
 {
+	(void)arch_info;
 	struct nm_context *const ctx = user;
 
 	/* Peek the segment structure */

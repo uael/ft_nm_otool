@@ -222,7 +222,7 @@ static inline int mh_load(struct obj const *obj,
 
 		/* Perform user collection if enabled */
 		if (cmd < collector->ncollector && collector->collectors[cmd])
-			err = collector->collectors[cmd](obj, off, user);
+			err = collector->collectors[cmd](obj, off, arch_info, user);
 
 		off += obj_swap32(obj, lc->cmdsize);
 	}
@@ -442,6 +442,10 @@ static int ar_load(struct obj const *const obj,
 	    ft_strncmp(info.name, SYMDEF_64, info.name_len) != 0 &&
 	    ft_strncmp(info.name, SYMDEF_64_SORTED, info.name_len) != 0)
 		return (errno = EBADMACHO), OFILE_E_INVAL_ARCHOBJ;
+
+	/* User call-back on load */
+	if (collector->ar_load)
+		collector->ar_load(user);
 
 	/* Loop though AR object and load each one */
 	while (off += info.size, (err = ar_info_peek(obj, &off, &info)) == 0) {

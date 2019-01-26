@@ -20,9 +20,11 @@
 #include <errno.h>
 #include <stdlib.h>
 
-static inline void dump(const char *const text, uint64_t const off,
-                        uint64_t const size, unsigned const padd)
+static inline void dump_le(obj_t const o,
+                           const char *const text, uint64_t const off,
+                           uint64_t const size, unsigned const padd)
 {
+	(void)o;
 	ft_printf("Contents of (__TEXT,__text) section\n");
 
 	for (uint64_t i = 0; i < size; i += 0x10) {
@@ -35,7 +37,24 @@ static inline void dump(const char *const text, uint64_t const off,
 	}
 }
 
-static int segment_collect(obj_t const o, size_t off, void *const user)
+static inline void dump_be(obj_t const o,
+                           const char *const text, uint64_t const off,
+                           uint64_t const size, unsigned const padd)
+{
+	ft_printf("Contents of (__TEXT,__text) section\n");
+
+	for (uint64_t i = 0; i < size; i += 0x10) {
+		ft_printf("%0*llx\t", padd, off + i);
+
+		for (uint64_t j = 0; j < 4 && i + (j * 4) < size; ++j)
+			ft_printf("%08x ", obj_swap32(o, ((uint32_t *)(text + i))[j]));
+
+		ft_printf("\n");
+	}
+}
+
+static int segment_collect(obj_t const o, size_t off,
+                           NXArchInfo const *arch_info, void *const user)
 {
 	(void)user;
 	struct segment_command const *const seg = obj_peek(o, off, sizeof *seg);
@@ -45,9 +64,6 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 
 	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
 		return (errno = EBADARCH), -1;
-
-	/* Only dump section's of __TEXT segment */
-	if (ft_strcmp("__TEXT", seg->segname) != 0) return 0;
 
 	off += sizeof *seg;
 
@@ -70,7 +86,9 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 			if (text == NULL) return -1;
 
 			/* It's a valid text section, dump it.. */
-			dump(text, addr, size, 8);
+			(arch_info->cputype == CPU_TYPE_I386 ||
+			 arch_info->cputype == CPU_TYPE_X86_64
+			 ? dump_le : dump_be)(o, text, addr, size, 8);
 			break;
 		}
 
@@ -80,7 +98,8 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 	return 0;
 }
 
-static int segment_64_collect(obj_t const o, size_t off, void *const user)
+static int segment_64_collect(obj_t const o, size_t off,
+                              NXArchInfo const *arch_info, void *const user)
 {
 	(void)user;
 	struct segment_command_64 const *const seg =
@@ -89,9 +108,6 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 
 	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
 		return (errno = EBADARCH), -1;
-
-	/* Only dump section's of __TEXT segment */
-	if (ft_strcmp("__TEXT", seg->segname) != 0) return 0;
 
 	off += sizeof *seg;
 
@@ -114,7 +130,9 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 			if (text == NULL) return -1;
 
 			/* It's a valid text section, dump it.. */
-			dump(text, addr, size, 16);
+			(arch_info->cputype == CPU_TYPE_I386 ||
+			 arch_info->cputype == CPU_TYPE_X86_64
+			 ? dump_le : dump_be)(o, text, addr, size, 16);
 			break;
 		}
 
@@ -122,6 +140,13 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 	}
 
 	return 0;
+}
+
+static void on_ar_load(void *user)
+{
+	char const *ctx = user;
+
+	ft_printf("Archive : %s\n", ctx);
 }
 
 static void on_load(obj_t const o, NXArchInfo const *const arch_info,
@@ -136,9 +161,9 @@ static void on_load(obj_t const o, NXArchInfo const *const arch_info,
 	/* In case of FAT file and multiple arch, also print arch info name */
 	bool const fat = obj_ofile(o) != OFILE_MH && obj_target(o) == OFILE_NX_ALL;
 
-	ft_printf("\n%s", ctx);
+	ft_printf("%s", ctx);
 	if (name) ft_printf("(%.*s)", (unsigned) name_len, name);
-	if (fat)  ft_printf(" (for architecture %s)",
+	if (fat)  ft_printf(" (architecture %s)",
 						arch_info ? arch_info->name : "none");
 	ft_printf(":\n");
 }
@@ -146,6 +171,7 @@ static void on_load(obj_t const o, NXArchInfo const *const arch_info,
 /* otool collectors */
 static struct ofile_collector const otool_collector = {
 	.load = on_load,
+	.ar_load = on_ar_load,
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SEGMENT]    = segment_collect,
