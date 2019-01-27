@@ -503,6 +503,10 @@ static int load(struct obj *const obj,
 
 	unsigned i;
 
+	/* No throw for 0 magic, just skip */
+	if (*(uint32_t *)obj->buf == 0)
+		return 0;
+
 	/* Using the Mach-o magic, find the appropriate loader,
 	 * then retrieve LE mode, M64 and load function from it */
 	for (i = 0; i < COUNT_OF(loaders) &&

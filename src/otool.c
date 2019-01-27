@@ -128,7 +128,7 @@ static void on_load(obj_t const o, void *user)
 	char const *ctx = user;
 
 	/* load call-back is called with NULL `o` on archive begin */
-	if (obj_ofile(o) == OFILE_AR)
+	if (o == NULL)
 		return (void)ft_printf("Archive : %s\n", ctx);
 
 	size_t name_len;
