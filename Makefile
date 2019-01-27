@@ -116,7 +116,5 @@ $(TARGET_BIN): | $(DEPS) $(MAKE_DEPS)
 clean:
 	@rm -rf $(BUILD_DIR)
 
-fclean: clean
+mrproper: clean
 	@rm -rf $(TARGET_LIB) $(TARGET_BIN)
-
-re: clean all

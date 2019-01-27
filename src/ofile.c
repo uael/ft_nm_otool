@@ -63,7 +63,8 @@ struct obj
 {
 	enum ofile ofile; /**< Object ofile type */
 
-	NXArchInfo const *target; /**< User target */
+	NXArchInfo const *target; /**< User target      */
+	NXArchInfo const *arch;   /**< Object arch info */
 
 	uint8_t const *buf; /**< Object mapped buffer      */
 	size_t size;        /**< Object mapped buffer size */
@@ -130,6 +131,14 @@ inline NXArchInfo const *obj_target(struct obj const *const obj)
 }
 
 /**
+ * Retrieve object architecture info
+ */
+inline NXArchInfo const *obj_arch(struct obj const *const obj)
+{
+	return obj->arch;
+}
+
+/**
  * Retrieve Mach-o object name, only for archive
  */
 inline char const *obj_name(struct obj const *const obj, size_t *out_len)
@@ -177,25 +186,26 @@ static inline int mh_load(struct obj const *obj,
 	 * which have the same size on both 32 and 64 struct */
 	struct mach_header const *const header = obj_peek(obj, 0, sizeof *header);
 	if (header == NULL) return OFILE_E_INVAL_MHHDR;
+	struct obj new_obj = *obj;
 
 	/* Validate the Mach-o header arch info */
-	NXArchInfo const *const arch_info =
+	new_obj.arch =
 		NXGetArchInfoFromCpuType(
 			(cpu_type_t)obj_swap32(obj, (uint32_t)header->cputype),
 			(cpu_subtype_t)obj_swap32(obj, (uint32_t)header->cpusubtype));
 
-	if (arch_info == NULL)
+	if (new_obj.arch == NULL)
 		return (errno = EBADMACHO), OFILE_E_INVAL_ARCHINFO;
 
 	/* Skip load if arch didn't match targeted one */
 	if (obj->target != NULL && obj->target != OFILE_NX_HOST &&
-		(obj->target->cputype != arch_info->cputype ||
-	    obj->target->cpusubtype != arch_info->cpusubtype))
+		(obj->target->cputype != new_obj.arch->cputype ||
+	    obj->target->cpusubtype != new_obj.arch->cpusubtype))
 		return 0;
 
 	/* User call-back on load */
 	if (collector->load)
-		collector->load(obj, arch_info, user);
+		collector->load(&new_obj, user);
 
 	static size_t const header_sizes[] = {
 		[false] = sizeof(struct mach_header),
@@ -222,7 +232,7 @@ static inline int mh_load(struct obj const *obj,
 
 		/* Perform user collection if enabled */
 		if (cmd < collector->ncollector && collector->collectors[cmd])
-			err = collector->collectors[cmd](obj, off, arch_info, user);
+			err = collector->collectors[cmd](&new_obj, off, user);
 
 		off += obj_swap32(obj, lc->cmdsize);
 	}
@@ -443,9 +453,9 @@ static int ar_load(struct obj const *const obj,
 	    ft_strncmp(info.name, SYMDEF_64_SORTED, info.name_len) != 0)
 		return (errno = EBADMACHO), OFILE_E_INVAL_ARCHOBJ;
 
-	/* User call-back on load */
-	if (collector->ar_load)
-		collector->ar_load(user);
+	/* User call-back on load with NULL object to indicate AR begin */
+	if (collector->load)
+		collector->load(NULL, user);
 
 	/* Loop though AR object and load each one */
 	while (off += info.size, (err = ar_info_peek(obj, &off, &info)) == 0) {

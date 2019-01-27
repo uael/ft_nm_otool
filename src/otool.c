@@ -20,41 +20,35 @@
 #include <errno.h>
 #include <stdlib.h>
 
-static inline void dump_le(obj_t const o,
-                           const char *const text, uint64_t const off,
-                           uint64_t const size, unsigned const padd)
-{
-	(void)o;
-	ft_printf("Contents of (__TEXT,__text) section\n");
-
-	for (uint64_t i = 0; i < size; i += 0x10) {
-		ft_printf("%0*llx\t", padd, off + i);
-
-		for (uint64_t j = 0; j < 0x10 && i + j < size; ++j)
-			ft_printf("%02hhx ", text[i + j]);
-
-		ft_printf("\n");
-	}
-}
-
-static inline void dump_be(obj_t const o,
-                           const char *const text, uint64_t const off,
-                           uint64_t const size, unsigned const padd)
+static inline int dump(obj_t const o, uint64_t const off, uint64_t const addr,
+                       uint64_t const size)
 {
 	ft_printf("Contents of (__TEXT,__text) section\n");
 
-	for (uint64_t i = 0; i < size; i += 0x10) {
-		ft_printf("%0*llx\t", padd, off + i);
+	char const *const text = obj_peek(o, off, size);
+	if (text == NULL) return -1;
 
-		for (uint64_t j = 0; j < 4 && i + (j * 4) < size; ++j)
-			ft_printf("%08x ", obj_swap32(o, ((uint32_t *)(text + i))[j]));
+	/* Only dump byte per byte when we known the arch is i386 or x86_64 */
+	bool const usual_dump = obj_arch(o) == NULL ||
+	                        obj_arch(o)->cputype == CPU_TYPE_I386 ||
+	                        obj_arch(o)->cputype == CPU_TYPE_X86_64;
+
+	for (uint64_t i = 0; i < size; i += 0x10) {
+		ft_printf("%0*llx\t", obj_ism64(o) ? 16 : 8, addr + i);
+
+		if (usual_dump)
+			for (uint64_t j = 0; j < 0x10 && i + j < size; ++j)
+				ft_printf("%02hhx ", text[i + j]);
+		else
+			for (uint64_t j = 0; j < 4 && i + (j * 4) < size; ++j)
+				ft_printf("%08x ", obj_swap32(o, ((uint32_t *)(text + i))[j]));
 
 		ft_printf("\n");
 	}
+	return 0;
 }
 
-static int segment_collect(obj_t const o, size_t off,
-                           NXArchInfo const *arch_info, void *const user)
+static int segment_collect(obj_t const o, size_t off, void *const user)
 {
 	(void)user;
 	struct segment_command const *const seg = obj_peek(o, off, sizeof *seg);
@@ -82,14 +76,8 @@ static int segment_collect(obj_t const o, size_t off,
 			uint32_t const addr   = obj_swap32(o, sect->addr);
 			uint32_t const size   = obj_swap32(o, sect->size);
 
-			char const *const text = obj_peek(o, offset, size);
-			if (text == NULL) return -1;
-
 			/* It's a valid text section, dump it.. */
-			(arch_info->cputype == CPU_TYPE_I386 ||
-			 arch_info->cputype == CPU_TYPE_X86_64
-			 ? dump_le : dump_be)(o, text, addr, size, 8);
-			break;
+			return dump(o, offset, addr, size);
 		}
 
 		off += sizeof *sect;
@@ -98,8 +86,7 @@ static int segment_collect(obj_t const o, size_t off,
 	return 0;
 }
 
-static int segment_64_collect(obj_t const o, size_t off,
-                              NXArchInfo const *arch_info, void *const user)
+static int segment_64_collect(obj_t const o, size_t off, void *const user)
 {
 	(void)user;
 	struct segment_command_64 const *const seg =
@@ -126,14 +113,8 @@ static int segment_64_collect(obj_t const o, size_t off,
 			uint64_t const addr   = obj_swap64(o, sect->addr);
 			uint64_t const size   = obj_swap64(o, sect->size);
 
-			char const *const text = obj_peek(o, offset, size);
-			if (text == NULL) return -1;
-
 			/* It's a valid text section, dump it.. */
-			(arch_info->cputype == CPU_TYPE_I386 ||
-			 arch_info->cputype == CPU_TYPE_X86_64
-			 ? dump_le : dump_be)(o, text, addr, size, 16);
-			break;
+			return dump(o, offset, addr, size);
 		}
 
 		off += sizeof *sect;
@@ -142,17 +123,14 @@ static int segment_64_collect(obj_t const o, size_t off,
 	return 0;
 }
 
-static void on_ar_load(void *user)
+static void on_load(obj_t const o, void *user)
 {
 	char const *ctx = user;
 
-	ft_printf("Archive : %s\n", ctx);
-}
+	/* load call-back is called with NULL `o` on archive begin */
+	if (obj_ofile(o) == OFILE_AR)
+		return (void)ft_printf("Archive : %s\n", ctx);
 
-static void on_load(obj_t const o, NXArchInfo const *const arch_info,
-					void *user)
-{
-	char const *ctx = user;
 	size_t name_len;
 
 	/* In case of archive sub object, name is non-null */
@@ -164,14 +142,13 @@ static void on_load(obj_t const o, NXArchInfo const *const arch_info,
 	ft_printf("%s", ctx);
 	if (name) ft_printf("(%.*s)", (unsigned) name_len, name);
 	if (fat)  ft_printf(" (architecture %s)",
-						arch_info ? arch_info->name : "none");
+						obj_arch(o) ? obj_arch(o)->name : "none");
 	ft_printf(":\n");
 }
 
 /* otool collectors */
 static struct ofile_collector const otool_collector = {
 	.load = on_load,
-	.ar_load = on_ar_load,
 	.ncollector = LC_SEGMENT_64 + 1,
 	.collectors = {
 		[LC_SEGMENT]    = segment_collect,
