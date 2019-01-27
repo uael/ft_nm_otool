@@ -1303,14 +1303,3 @@
 /usr/local/munki/ptyexec
 /usr/local/munki/removepackages
 /usr/local/munki/supervisor
-/Users/alucas-/.brew/bin/brew
-/Users/alucas-/.cargo/bin/cargo
-/Users/alucas-/.cargo/bin/cargo-clippy
-/Users/alucas-/.cargo/bin/cargo-fmt
-/Users/alucas-/.cargo/bin/rls
-/Users/alucas-/.cargo/bin/rust-gdb
-/Users/alucas-/.cargo/bin/rust-lldb
-/Users/alucas-/.cargo/bin/rustc
-/Users/alucas-/.cargo/bin/rustdoc
-/Users/alucas-/.cargo/bin/rustfmt
-/Users/alucas-/.cargo/bin/rustup
