@@ -1,25 +1,29 @@
 # Go to project root dir
-cd dirname (status -f)/..;
+cd (dirname (status -f))/..;
 
-make SAN=1 DEBUG=1
 mkdir -p out
 
-for i in (cat test/*.txt)
-    echo $i
-    
-    ./build/bin/ft_nm-san  $i > out/a
-    set st1 $status;
-    nm $i > out/b
-    set st2 $status;
+for i in test/*.txt
+    for i in (cat $i)
+        echo -n " + nm: $i: "
 
-    if test $st1 != $st2
-        break
-    end
+        $argv[1] $i >out/a 2>/dev/null; set st1 $status
+        $argv[2] $argv[3] $i >out/b 2>/dev/null; set st2 $status
 
-    if test $st1 -eq 0
-        diff -B out/a out/b
-        if test "$status" != 0
-            break
+        if test $st1 != $st2
+            set_color red; echo "KO ($st1 != $st2)"; set_color normal
+            read -n1 ans
+        else if test $st1 -eq 0
+            diff -w out/a out/b > out/diff
+            if test "$status" != 0
+                set_color red; echo "KO"; set_color normal
+                cat out/diff
+                read -n1 ans
+            else
+                set_color green; echo "OK"; set_color normal
+            end
+        else
+            set_color green; echo "OK"; set_color normal
         end
     end
 end
