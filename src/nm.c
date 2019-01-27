@@ -259,11 +259,13 @@ static int symtab_collect(obj_t const o, size_t const off, void *const user)
 }
 
 static int sects_update(struct nm_context *const ctx,
-                        struct section const *const sect)
+                        struct section const *const sect, bool const bad_sect)
 {
 	if (sect == NULL) return NM_E_INVAL_SECTION;
 
 	/* Update section table */
+	if (bad_sect)
+		ctx->sects[ctx->nsects++] = '?';
 	if (ft_strcmp("__text", sect->sectname) == 0)
 		ctx->sects[ctx->nsects++] = 't';
 	else if (ft_strcmp("__data", sect->sectname) == 0)
@@ -288,6 +290,9 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
 		return (errno = EBADARCH), NM_E_INVAL_ARCH;
 
+	const bool bad_sect = obj_peek(o, obj_swap32(o, seg->fileoff),
+	                               obj_swap32(o, seg->filesize)) == NULL;
+
 	off += sizeof *seg;
 	uint32_t nsects = obj_swap32(o, seg->nsects);
 
@@ -300,7 +305,8 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 	/* Loop though section and collect each one
 	 * section is next to it's header */
 	for (; err == 0 && nsects--; off += sizeof(struct section))
-		err = sects_update(ctx, obj_peek(o, off, sizeof(struct section)));
+		err = sects_update(ctx, obj_peek(o, off, sizeof(struct section)),
+		                   bad_sect);
 
 	return err;
 }
@@ -317,6 +323,9 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
 		return (errno = EBADARCH), NM_E_INVAL_ARCH;
 
+	const bool bad_sect = obj_peek(o, obj_swap64(o, seg->fileoff),
+	                               obj_swap64(o, seg->filesize)) == NULL;
+
 	off += sizeof *seg;
 	uint32_t nsects = obj_swap32(o, seg->nsects);
 
@@ -329,16 +338,14 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 	/* Loop though section and collect each one
 	 * section is next to it's header */
 	for (; err == 0 && nsects--; off += sizeof(struct section_64))
-		err = sects_update(ctx, obj_peek(o, off, sizeof(struct section_64)));
+		err = sects_update(ctx, obj_peek(o, off, sizeof(struct section_64)),
+		                   bad_sect);
 
 	return err;
 }
 
 static void on_load(obj_t const o, void *user)
 {
-	/* load call-back is called with NULL `o` on archive begin */
-	if (o == NULL) return;
-
 	struct nm_context *const ctx = user;
 	size_t name_len;
 
@@ -351,8 +358,9 @@ static void on_load(obj_t const o, void *user)
 	if (name || fat) {
 		ft_printf("\n%s", ctx->bin);
 		if (name) ft_printf("(%.*s)", (unsigned) name_len, name);
-		if (fat)  ft_printf(" (for architecture %s)",
-			                obj_arch(o) ? obj_arch(o)->name : "none");
+		if (fat && name == NULL)
+			ft_printf(" (for architecture %s)",
+			          obj_arch(o) ? obj_arch(o)->name : "none");
 		ft_printf(":\n");
 	}
 	else if (ctx->nfiles > 1) ft_printf("\n%s:\n", ctx->bin);

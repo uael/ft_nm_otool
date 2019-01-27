@@ -201,7 +201,7 @@ static inline int mh_load(struct obj const *obj,
 	if (obj->target != NULL && obj->target != OFILE_NX_HOST &&
 		(obj->target->cputype != new_obj.arch->cputype ||
 	    obj->target->cpusubtype != new_obj.arch->cpusubtype))
-		return 0;
+		return OFILE_E_NOTFOUND_ARCH;
 
 	/* User call-back on load */
 	if (collector->load)
@@ -331,7 +331,7 @@ static int fat_load(struct obj const *const obj,
 
 		/* Load at new offset */
 		int const err = load(&new_obj, collector, user);
-		if (err) return err;
+		if (err && err != OFILE_E_NOTFOUND_ARCH) return err;
 	}
 
 	return 0;
@@ -453,10 +453,6 @@ static int ar_load(struct obj const *const obj,
 	    ft_strncmp(info.name, SYMDEF_64_SORTED, info.name_len) != 0)
 		return (errno = EBADMACHO), OFILE_E_INVAL_ARCHOBJ;
 
-	/* User call-back on load with NULL object to indicate AR begin */
-	if (collector->load)
-		collector->load(NULL, user);
-
 	/* Loop though AR object and load each one */
 	while (off += info.size, (err = ar_info_peek(obj, &off, &info)) == 0) {
 		struct obj new_obj = {
@@ -502,10 +498,6 @@ static int load(struct obj *const obj,
 	};
 
 	unsigned i;
-
-	/* No throw for 0 magic, just skip */
-	if (*(uint32_t *)obj->buf == 0)
-		return 0;
 
 	/* Using the Mach-o magic, find the appropriate loader,
 	 * then retrieve LE mode, M64 and load function from it */

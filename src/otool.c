@@ -26,7 +26,8 @@ static inline int dump(obj_t const o, uint64_t const off, uint64_t const addr,
 	ft_printf("Contents of (__TEXT,__text) section\n");
 
 	char const *const text = obj_peek(o, off, size);
-	if (text == NULL) return -1;
+	if (text == NULL)
+		return (size ? -1 : 0);
 
 	/* Only dump byte per byte when we known the arch is i386 or x86_64 */
 	bool const usual_dump = obj_arch(o) == NULL ||
@@ -36,12 +37,13 @@ static inline int dump(obj_t const o, uint64_t const off, uint64_t const addr,
 	for (uint64_t i = 0; i < size; i += 0x10) {
 		ft_printf("%0*llx\t", obj_ism64(o) ? 16 : 8, addr + i);
 
-		if (usual_dump)
-			for (uint64_t j = 0; j < 0x10 && i + j < size; ++j)
-				ft_printf("%02hhx ", text[i + j]);
-		else
-			for (uint64_t j = 0; j < 4 && i + (j * 4) < size; ++j)
-				ft_printf("%08x ", obj_swap32(o, ((uint32_t *)(text + i))[j]));
+		uint64_t j = 0;
+
+		if (usual_dump == false)
+			for (; j < 0x10 && i + j + 0x03 < size; j += 0x04)
+				ft_printf("%08x ", obj_swap32(o, *(uint32_t *)(text + i + j)));
+		for (; j < 0x10 && i + j < size; ++j)
+			ft_printf("%02hhx ", text[i + j]);
 
 		ft_printf("\n");
 	}
@@ -58,6 +60,9 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 
 	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
 		return (errno = EBADARCH), -1;
+
+	if (!obj_peek(o, obj_swap32(o, seg->fileoff), obj_swap32(o, seg->filesize)))
+		return (errno = EBADMACHO), -1;
 
 	off += sizeof *seg;
 
@@ -91,10 +96,13 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 	(void)user;
 	struct segment_command_64 const *const seg =
 		obj_peek(o, off, sizeof *seg);
-	if (seg == NULL) return -1;
-
+	if (seg == NULL)
+		return -1;
 	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
 		return (errno = EBADARCH), -1;
+
+	if (!obj_peek(o, obj_swap64(o, seg->fileoff), obj_swap64(o, seg->filesize)))
+		return (errno = EBADMACHO), -1;
 
 	off += sizeof *seg;
 
@@ -126,11 +134,6 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 static void on_load(obj_t const o, void *user)
 {
 	char const *ctx = user;
-
-	/* load call-back is called with NULL `o` on archive begin */
-	if (o == NULL)
-		return (void)ft_printf("Archive : %s\n", ctx);
-
 	size_t name_len;
 
 	/* In case of archive sub object, name is non-null */
@@ -141,8 +144,9 @@ static void on_load(obj_t const o, void *user)
 
 	ft_printf("%s", ctx);
 	if (name) ft_printf("(%.*s)", (unsigned) name_len, name);
-	if (fat)  ft_printf(" (architecture %s)",
-						obj_arch(o) ? obj_arch(o)->name : "none");
+	if (fat && name == NULL)
+		ft_printf(" (architecture %s)",
+		          obj_arch(o) ? obj_arch(o)->name : "none");
 	ft_printf(":\n");
 }
 
