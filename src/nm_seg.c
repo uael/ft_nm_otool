@@ -44,17 +44,14 @@ int					segment_collect(t_obj const o, size_t off,
 	if (se == NULL)
 		return (NM_E_INVAL_SEGMENT);
 	if ((se->cmd == LC_SEGMENT_64) != o->m64)
-	{
-		errno = EBADARCH;
-		return (NM_E_INVAL_ARCH);
-	}
+		return (((errno = EBADARCH) & 0) + NM_E_INVAL_ARCH);
 	off += sizeof(*se);
 	nsects = obj_swap32(o, se->nsects);
 	if (ctx->nsects + nsects >= COUNT_OF(ctx->sects))
-	{
-		errno = EBADMACHO;
-		return (NM_E_INVAL_SECTION_COUNT);
-	}
+		return (((errno = EBADMACHO) & 0) + NM_E_INVAL_SECTION_COUNT);
+	if (se->filesize && !obj_peek(o,
+		obj_swap32(o, se->fileoff), obj_swap32(o, se->filesize)))
+		return (((errno = EBADMACHO) & 0) + NM_E_INVAL_SECTION);
 	err = 0;
 	while (nsects-- && !(err = sects_update(ctx, obj_peek(o, off, sect_sz))))
 		off += sect_sz;
@@ -73,17 +70,14 @@ int					segment_64_collect(t_obj const o, size_t off,
 	if (se == NULL)
 		return (NM_E_INVAL_SEGMENT);
 	if ((se->cmd == LC_SEGMENT_64) != o->m64)
-	{
-		errno = EBADARCH;
-		return (NM_E_INVAL_ARCH);
-	}
+		return (((errno = EBADARCH) & 0) + NM_E_INVAL_ARCH);
 	off += sizeof(*se);
 	nsects = obj_swap32(o, se->nsects);
 	if (ctx->nsects + nsects >= COUNT_OF(ctx->sects))
-	{
-		errno = EBADMACHO;
-		return (NM_E_INVAL_SECTION_COUNT);
-	}
+		return (((errno = EBADMACHO) & 0) + NM_E_INVAL_SECTION_COUNT);
+	if (se->filesize && !obj_peek(o,
+		obj_swap64(o, se->fileoff), obj_swap64(o, se->filesize)))
+		return (((errno = EBADMACHO) & 0) + NM_E_INVAL_SECTION);
 	err = 0;
 	while (nsects-- && !(err = sects_update(ctx, obj_peek(o, off, sect_sz))))
 		off += sect_sz;

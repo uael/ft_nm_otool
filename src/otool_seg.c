@@ -64,8 +64,9 @@ int					segment_collect(t_obj const o, size_t off, void *const user)
 	(void)user;
 	if (se == NULL || (se->cmd == LC_SEGMENT_64) != o->m64)
 		return (((errno = EBADARCH) & 0) - 1);
-	if (!obj_peek(o, obj_swap32(o, se->fileoff), obj_swap32(o, se->filesize)))
-		return (errno = EBADMACHO), -1;
+	if (se->filesize && !obj_peek(o,
+		obj_swap32(o, se->fileoff), obj_swap32(o, se->filesize)))
+		return (-1);
 	off += sizeof(*se) - sizeof(*sect);
 	nsects = obj_swap32(o, se->nsects);
 	while (nsects--)
@@ -90,8 +91,9 @@ int					segment_64_collect(t_obj const o, size_t off,
 	(void)user;
 	if (se == NULL || (se->cmd == LC_SEGMENT_64) != o->m64)
 		return (((errno = EBADARCH) & 0) - 1);
-	if (!obj_peek(o, obj_swap64(o, se->fileoff), obj_swap64(o, se->filesize)))
-		return (errno = EBADMACHO), -1;
+	if (se->filesize && !obj_peek(o,
+		obj_swap64(o, se->fileoff), obj_swap64(o, se->filesize)))
+		return (-1);
 	off += sizeof(*se) - sizeof(*sect);
 	nsects = obj_swap32(o, se->nsects);
 	while (nsects--)
