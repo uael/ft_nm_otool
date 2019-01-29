@@ -88,7 +88,7 @@ int										main(int ac, char *av[])
 	target = NULL;
 	if ((i = otool_parse_opts(ac, av, &target)) < 0)
 		return (EXIT_FAILURE);
-	if (ac < 2)
+	if (i == ac)
 		av[ac++] = "a.out";
 	ret = EXIT_SUCCESS;
 	while (i < ac)

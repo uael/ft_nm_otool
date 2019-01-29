@@ -127,15 +127,11 @@ norminette:
 	@norminette $(shell zsh -c "echo {libft,src}/**/**.[ch]")
 
 check: all
-	@echo "./test/test.sh 'nm' './ft_nm' test/bin.txt"
-	@read -n1 ans
+	@echo >&2 "./test/test.sh 'nm' './ft_nm' test/bin.txt"
 	@./test/test.sh 'nm' './ft_nm' test/bin.txt
-	@echo "./test/test.sh 'nm' './ft_nm' test/custom.txt"
-	@read -n1 ans
+	@echo >&2 "./test/test.sh 'nm' './ft_nm' test/custom.txt"
 	@./test/test.sh 'nm' './ft_nm' test/custom.txt
-	@echo "./test/test.sh 'otool -t' './ft_otool' test/bin.txt"
-	@read -n1 ans
+	@echo >&2 "./test/test.sh 'otool -t' './ft_otool' test/bin.txt"
 	@./test/test.sh 'otool -t' './ft_otool' test/bin.txt
-	@echo "./test/test.sh 'otool -t' './ft_otool' test/custom.txt"
-	@read -n1 ans
+	@echo >&2 "./test/test.sh 'otool -t' './ft_otool' test/custom.txt"
 	@./test/test.sh 'otool -t' './ft_otool' test/custom.txt
