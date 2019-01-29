@@ -61,8 +61,10 @@ static int segment_collect(obj_t const o, size_t off, void *const user)
 	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
 		return (errno = EBADARCH), -1;
 
-	if (!obj_peek(o, obj_swap32(o, seg->fileoff), obj_swap32(o, seg->filesize)))
-		return (errno = EBADMACHO), -1;
+	if (seg->filesize &&
+	    obj_peek(o, obj_swap32(o, seg->fileoff),
+	             obj_swap32(o, seg->filesize)) == NULL)
+		return -1;
 
 	off += sizeof *seg;
 
@@ -101,8 +103,10 @@ static int segment_64_collect(obj_t const o, size_t off, void *const user)
 	if ((seg->cmd == LC_SEGMENT_64) != obj_ism64(o))
 		return (errno = EBADARCH), -1;
 
-	if (!obj_peek(o, obj_swap64(o, seg->fileoff), obj_swap64(o, seg->filesize)))
-		return (errno = EBADMACHO), -1;
+	if (seg->filesize &&
+	    obj_peek(o, obj_swap64(o, seg->fileoff),
+	             obj_swap64(o, seg->filesize)) == NULL)
+		return -1;
 
 	off += sizeof *seg;
 
