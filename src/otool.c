@@ -27,13 +27,11 @@ static void								on_load(t_obj const o,
 	struct s_otool_context *const	ctx = user;
 	bool							fat;
 
-	if (o == NULL)
-		return ((void)ft_printf("Archive : %s\n", ctx->bin));
 	fat = o->ofile != OFILE_MH && o->target == OFILE_NX_ALL;
 	ft_printf("%s", ctx->bin);
 	if (o->name)
 		ft_printf("(%.*s)", (unsigned)o->name_len, o->name);
-	if (fat)
+	else if (fat)
 		ft_printf(" (architecture %s)",
 			arch_info ? arch_info->name : "none");
 	ft_printf(":\n");

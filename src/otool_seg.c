@@ -30,27 +30,25 @@ static inline bool	dump_bytebybyte(t_obj const o)
 static inline int	dump(t_obj const o, uint64_t const addr,
 						uint64_t const off, uint64_t const size)
 {
-	bool const	usual = dump_bytebybyte(o);
+	bool const	usual_dump = dump_bytebybyte(o);
 	uint64_t	i;
 	uint64_t	j;
 	char const	*txt;
 
-	if ((txt = obj_peek(o, off, size)) == NULL)
-		return (-1);
 	ft_printf("Contents of (__TEXT,__text) section\n");
+	if ((txt = obj_peek(o, off, size)) == NULL)
+		return (size ? -1 : 0);
 	i = 0;
 	while (i < size)
 	{
 		ft_printf("%0*llx\t", o->m64 ? 16 : 8, addr + i);
 		j = 0;
-		if (usual)
-		{
-			while (j < 0x10 && i + j < size)
-				ft_printf("%02hhx ", txt[i + j++]);
-		}
-		else
-			while (j < 0x04 && i + (j * 4) < size)
-				ft_printf("%08x ", obj_swap32(o, ((uint32_t *)(txt + i))[j++]));
+		if (usual_dump == false)
+			while (j < 0x10 && i + j + 0x03 < size)
+				ft_printf("%08x ",
+					obj_swap32(o, *(uint32_t *)(txt + i + (j += 0x04) - 0x04)));
+		while (j < 0x10 && i + j < size)
+			ft_printf("%02hhx ", txt[i + j++]);
 		ft_printf("\n");
 		i += 0x10;
 	}
@@ -66,6 +64,8 @@ int					segment_collect(t_obj const o, size_t off, void *const user)
 	(void)user;
 	if (se == NULL || (se->cmd == LC_SEGMENT_64) != o->m64)
 		return (((errno = EBADARCH) & 0) - 1);
+	if (!obj_peek(o, obj_swap32(o, se->fileoff), obj_swap32(o, se->filesize)))
+		return (errno = EBADMACHO), -1;
 	off += sizeof(*se) - sizeof(*sect);
 	nsects = obj_swap32(o, se->nsects);
 	while (nsects--)
@@ -90,6 +90,8 @@ int					segment_64_collect(t_obj const o, size_t off,
 	(void)user;
 	if (se == NULL || (se->cmd == LC_SEGMENT_64) != o->m64)
 		return (((errno = EBADARCH) & 0) - 1);
+	if (!obj_peek(o, obj_swap64(o, se->fileoff), obj_swap64(o, se->filesize)))
+		return (errno = EBADMACHO), -1;
 	off += sizeof(*se) - sizeof(*sect);
 	nsects = obj_swap32(o, se->nsects);
 	while (nsects--)

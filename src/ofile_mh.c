@@ -65,7 +65,7 @@ int					mh_load(struct s_obj const *obj,
 	if (obj->target != NULL && obj->target != OFILE_NX_HOST
 		&& (obj->target->cputype != new_obj.arch_info->cputype
 			|| obj->target->cpusubtype != new_obj.arch_info->cpusubtype))
-		return (0);
+		return (OFILE_E_NOTFOUND_ARCH);
 	if (collector->load)
 		collector->load(&new_obj, new_obj.arch_info, user);
 	return (collect(obj_swap32(obj, hdr->ncmds), &new_obj, collector, user));

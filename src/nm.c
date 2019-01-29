@@ -44,15 +44,13 @@ static void								on_load(t_obj const o,
 	struct s_nm_context *const	ctx = user;
 	bool						fat;
 
-	if (o == NULL)
-		return ;
 	fat = o->ofile != OFILE_MH && o->target == OFILE_NX_ALL;
 	if (o->name || fat)
 	{
 		ft_printf("\n%s", ctx->bin);
 		if (o->name)
 			ft_printf("(%.*s)", (unsigned)o->name_len, o->name);
-		if (fat)
+		else if (fat)
 			ft_printf(" (for architecture %s)",
 				arch_info ? arch_info->name : "none");
 		ft_printf(":\n");

@@ -94,8 +94,6 @@ static int		ar_collect(struct s_obj const *const obj, size_t off,
 	struct s_ar_info	info;
 	int					err;
 
-	if (collector->load)
-		collector->load(NULL, NULL, user);
 	while ((err = ar_info_peek(obj, &off, &info)) == 0)
 	{
 		if ((err = load(&(struct s_obj){

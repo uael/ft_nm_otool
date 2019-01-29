@@ -121,7 +121,7 @@ int						fat_load(struct s_obj const *const obj,
 	idx[1] = 0;
 	while (idx[1] < idx[0])
 		if ((err = fat_object(obj, fat_archs, idx[1]++, &new_obj))
-			|| (err = load(&new_obj, collector, user)))
+			|| ((err = load(&new_obj, collector, user)) && err != 0x42))
 			return (err);
 	return (0);
 }
