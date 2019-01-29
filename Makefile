@@ -125,3 +125,17 @@ re: clean all
 
 norminette:
 	@norminette $(shell zsh -c "echo {libft,src}/**/**.[ch]")
+
+check: all
+	@echo "./test/test.sh 'nm' './ft_nm' test/bin.txt"
+	@read -n1 ans
+	@./test/test.sh 'nm' './ft_nm' test/bin.txt
+	@echo "./test/test.sh 'nm' './ft_nm' test/custom.txt"
+	@read -n1 ans
+	@./test/test.sh 'nm' './ft_nm' test/custom.txt
+	@echo "./test/test.sh 'otool -t' './ft_otool' test/bin.txt"
+	@read -n1 ans
+	@./test/test.sh 'otool -t' './ft_otool' test/bin.txt
+	@echo "./test/test.sh 'otool -t' './ft_otool' test/custom.txt"
+	@read -n1 ans
+	@./test/test.sh 'otool -t' './ft_otool' test/custom.txt
