@@ -138,13 +138,13 @@ norminette:
 
 check: all
 	@echo >&2 "./test/test.sh 'nm' './ft_nm' test/bin.txt"
-	@./test/test.sh 'nm' './ft_nm' test/bin.txt
+	@./test/test.sh 'nm' './ft_nm' test/bin.txt || true
 	@echo >&2 "./test/test.sh 'nm' './ft_nm' test/custom.txt"
-	@./test/test.sh 'nm' './ft_nm' test/custom.txt
+	@./test/test.sh 'nm' './ft_nm' test/custom.txt || true
 	@echo >&2 "./test/test.sh 'otool -t' './ft_otool' test/bin.txt"
-	@./test/test.sh 'otool -t' './ft_otool' test/bin.txt
+	@./test/test.sh 'otool -t' './ft_otool' test/bin.txt || true
 	@echo >&2 "./test/test.sh 'otool -t' './ft_otool' test/custom.txt"
-	@./test/test.sh 'otool -t' './ft_otool' test/custom.txt
+	@./test/test.sh 'otool -t' './ft_otool' test/custom.txt || true
 
 fuzz: export AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1
 fuzz: all
@@ -153,9 +153,9 @@ fuzz: all
 	  $(FUZZ_BIN) $(FUZZ_OPTS) @@
 
 fuzz_nm: FUZZ_OUT_DIR := $(BUILD_DIR)/fuzz_nm/$(shell date +%s)
-fuzz_nm: FUZZ_BIN     := ./ft_nm
+fuzz_nm: FUZZ_BIN     := ./build/bin/ft_nm-fuzz
 fuzz_nm: fuzz
 
 fuzz_otool: FUZZ_OUT_DIR := $(BUILD_DIR)/fuzz_otool/$(shell date +%s)
-fuzz_otool: FUZZ_BIN     := ./ft_otool
+fuzz_otool: FUZZ_BIN     := ./build/bin/ft_otool-fuzz
 fuzz_otool: fuzz
