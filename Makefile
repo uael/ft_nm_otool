@@ -146,9 +146,9 @@ fuzz: all
 	  $(FUZZ_BIN) $(FUZZ_OPTS) @@
 
 fuzz_nm: FUZZ_OUT_DIR := $(BUILD_DIR)/fuzz_nm/$(shell date +%s)
-fuzz_nm: FUZZ_BIN     := ./build/bin/ft_nm
+fuzz_nm: FUZZ_BIN     := ./build/bin/ft_nm-fuzz
 fuzz_nm: fuzz
 
 fuzz_otool: FUZZ_OUT_DIR := $(BUILD_DIR)/fuzz_otool/$(shell date +%s)
-fuzz_otool: FUZZ_BIN     := ./build/bin/ft_otool
+fuzz_otool: FUZZ_BIN     := ./build/bin/ft_otool-fuzz
 fuzz_otool: fuzz
