@@ -121,10 +121,10 @@ mrproper: clean
 
 check: all
 	@echo >&2 "./test/test.sh 'nm' './build/bin/ft_nm' test/bin.txt"
-	@./test/test.sh 'nm' './build/bin/ft_nm' test/bin.txt
+	@./test/test.sh 'nm' './build/bin/ft_nm' test/bin.txt || true
 	@echo >&2 "./test/test.sh 'nm' './build/bin/ft_nm' test/custom.txt"
-	@./test/test.sh 'nm' './build/bin/ft_nm' test/custom.txt
+	@./test/test.sh 'nm' './build/bin/ft_nm' test/custom.txt || true
 	@echo >&2 "./test/test.sh 'otool -t' './build/bin/ft_otool' test/bin.txt"
-	@./test/test.sh 'otool -t' './build/bin/ft_otool' test/bin.txt
+	@./test/test.sh 'otool -t' './build/bin/ft_otool' test/bin.txt || true
 	@echo >&2 "./test/test.sh 'otool -t' './build/bin/ft_otool' test/custom.txt"
-	@./test/test.sh 'otool -t' './build/bin/ft_otool' test/custom.txt
+	@./test/test.sh 'otool -t' './build/bin/ft_otool' test/custom.txt || true
