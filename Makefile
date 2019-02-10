@@ -6,7 +6,7 @@
 #    By: alucas- <alucas-@student.42.fr>            +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 1970/01/01 00:00:42 by alucas-           #+#    #+#              #
-#    Updated: 1970/01/01 00:00:42 by alucas-          ###   ########.fr        #
+#    Updated: 2019/02/10 15:06:52 by alucas-          ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -16,9 +16,15 @@
 # Configuration
 # ------------------------------------------------------------------------------
 
-CC     := gcc
-AS     := gcc
-LD     := gcc
+ifeq ($(FUZZ),)
+  CC := gcc
+  AS := gcc
+  LD := gcc
+else
+  CC := afl-clang
+  AS := afl-clang
+  LD := afl-clang
+endif
 AR     := ar
 CFLAGS += -Wall -Wextra -Werror
 
@@ -34,6 +40,10 @@ else
     TARGET_SUFFIX  = -san
     CFLAGS        += -fsanitize=address
     LDFLAGS       += -fsanitize=address
+  endif
+  ifneq ($(FUZZ),)
+    CONFIG         = fuzz
+    TARGET_SUFFIX  = -fuzz
   endif
 endif
 
@@ -128,3 +138,17 @@ check: all
 	@./test/test.sh 'otool -t' './build/bin/ft_otool' test/bin.txt || true
 	@echo >&2 "./test/test.sh 'otool -t' './build/bin/ft_otool' test/custom.txt"
 	@./test/test.sh 'otool -t' './build/bin/ft_otool' test/custom.txt || true
+
+fuzz: export AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1
+fuzz: all
+	@mkdir -p $(FUZZ_OUT_DIR)
+	$(V)afl-fuzz -i test/fuzz/ -o $(FUZZ_OUT_DIR)/ \
+	  $(FUZZ_BIN) $(FUZZ_OPTS) @@
+
+fuzz_nm: FUZZ_OUT_DIR := $(BUILD_DIR)/fuzz_nm/$(shell date +%s)
+fuzz_nm: FUZZ_BIN     := ./build/bin/ft_nm
+fuzz_nm: fuzz
+
+fuzz_otool: FUZZ_OUT_DIR := $(BUILD_DIR)/fuzz_otool/$(shell date +%s)
+fuzz_otool: FUZZ_BIN     := ./build/bin/ft_otool
+fuzz_otool: fuzz
